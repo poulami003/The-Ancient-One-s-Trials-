@@ -1,0 +1,418 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="theme-color" content="#f3efe5">
+  <title>TrialSync — Campus interview scheduling</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Playfair+Display:wght@500;600;700&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      color-scheme: light;
+      --paper: #f3efe5;
+      --paper-deep: #e9e2d3;
+      --surface: #fbf9f3;
+      --ink: #211e1d;
+      --muted: #77716a;
+      --line: #ded6c8;
+      --red: #9d2929;
+      --red-dark: #702020;
+      --gold: #b88945;
+      --green: #426b57;
+      --serif: "Playfair Display", Georgia, serif;
+      --sans: "DM Sans", "Segoe UI", sans-serif;
+    }
+    * { box-sizing: border-box; }
+    body { margin: 0; min-width: 320px; background: var(--paper); color: var(--ink); font: 14px/1.45 var(--sans); }
+    button, input, select { font: inherit; }
+    button { color: inherit; }
+    .app { min-height: 100vh; display: grid; grid-template-columns: 226px minmax(0, 1fr); }
+    .sidebar { position: sticky; top: 0; height: 100vh; padding: 26px 17px 18px; display: flex; flex-direction: column; background: #211d1b; color: #f4eee2; }
+    .brand { display: flex; align-items: center; gap: 11px; padding: 0 8px 28px; border-bottom: 1px solid #49403b; color: inherit; text-decoration: none; }
+    .brand-mark { position: relative; width: 34px; height: 34px; flex: 0 0 auto; overflow: hidden; border: 1px solid var(--gold); background: #211d1b; }
+    .brand-mark img { position: absolute; inset: 0; width: 100%; height: 100%; max-width: none; object-fit: contain; }
+    .brand-name { font: 600 19px var(--serif); letter-spacing: .04em; }
+    .brand-sub { color: #b9aca0; font-size: 9px; letter-spacing: .19em; text-transform: uppercase; }
+    .side-label { margin: 27px 9px 10px; color: #a79a8e; font-size: 9px; letter-spacing: .17em; text-transform: uppercase; }
+    .nav { display: grid; gap: 5px; }
+    .nav button { width: 100%; display: flex; align-items: center; gap: 12px; padding: 10px 11px; border: 1px solid transparent; border-radius: 3px; background: transparent; color: #d5ccc1; text-align: left; cursor: pointer; }
+    .nav button:hover, .nav button.active { border-color: #55443c; background: #342a26; color: #fff9ee; }
+    .nav .nav-icon { width: 18px; color: #c89a53; text-align: center; font-size: 15px; }
+    .nav-count { margin-left: auto; color: #d4b57d; font-size: 11px; }
+    .side-bottom { margin-top: auto; }
+    .cycle-card { padding: 13px 12px; border: 1px solid #54453b; background: #2b2421; }
+    .cycle-overline { color: #d3ae70; font-size: 9px; letter-spacing: .16em; text-transform: uppercase; }
+    .cycle-title { margin: 6px 0 9px; font: 16px var(--serif); }
+    .cycle-meta { display: flex; justify-content: space-between; color: #b9afa4; font-size: 10px; }
+    .progress { height: 3px; margin-top: 9px; background: #54453b; }
+    .progress span { display: block; width: 68%; height: 100%; background: #c89549; }
+    .profile { display: flex; align-items: center; gap: 10px; margin: 18px 4px 0; padding-top: 15px; border-top: 1px solid #49403b; }
+    .avatar { width: 31px; height: 31px; display: grid; flex: 0 0 auto; place-items: center; border-radius: 50%; background: #8a342a; color: white; font-size: 11px; }
+    .profile strong { display: block; font-size: 11px; font-weight: 600; }
+    .profile small { color: #b9aca0; font-size: 10px; }
+    main { min-width: 0; padding: 0 38px 36px; }
+    .topbar { height: 62px; display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid var(--line); }
+    .breadcrumbs { color: var(--muted); font-size: 11px; }
+    .breadcrumbs b { color: var(--ink); font-weight: 600; }
+    .top-actions { display: flex; align-items: center; gap: 9px; }
+    .icon-button { width: 34px; height: 34px; display: grid; place-items: center; border: 1px solid var(--line); border-radius: 3px; background: var(--surface); cursor: pointer; }
+    .icon-button:hover { border-color: var(--red); color: var(--red); }
+    .season-label { padding: 6px 9px; border: 1px solid #d2c5ad; color: #635345; font-size: 10px; letter-spacing: .06em; text-transform: uppercase; }
+    .page-head { display: flex; align-items: end; justify-content: space-between; gap: 20px; padding: 23px 0 18px; }
+    .eyebrow { color: var(--red); font-size: 9px; font-weight: 700; letter-spacing: .2em; text-transform: uppercase; }
+    h1 { margin: 4px 0 3px; font: 600 32px/1.15 var(--serif); letter-spacing: 0; }
+    .subtitle { margin: 0; color: var(--muted); font-size: 12px; }
+    .head-actions { display: flex; gap: 8px; }
+    .button { min-height: 36px; display: inline-flex; align-items: center; justify-content: center; gap: 8px; padding: 0 12px; border: 1px solid var(--line); border-radius: 3px; background: var(--surface); cursor: pointer; font-size: 11px; font-weight: 600; }
+    .button:hover { border-color: #a99578; }
+    .button-primary { border-color: var(--red); background: var(--red); color: white; }
+    .button-primary:hover { border-color: var(--red-dark); background: var(--red-dark); }
+    .stats { display: grid; grid-template-columns: repeat(4, 1fr); margin: 17px 0 20px; border: 1px solid var(--line); background: rgba(251,249,243,.72); }
+    .stat { min-height: 75px; padding: 13px 16px; border-right: 1px solid var(--line); }
+    .stat:last-child { border-right: 0; }
+    .stat-label { display: block; color: var(--muted); font-size: 9px; letter-spacing: .11em; text-transform: uppercase; }
+    .stat-value { display: inline-block; margin-top: 3px; font: 600 23px/1.2 var(--serif); }
+    .stat-note { margin-left: 6px; color: var(--green); font-size: 9px; }
+    .workspace { display: grid; grid-template-columns: minmax(0, 1.55fr) minmax(270px, .85fr); align-items: start; gap: 17px; }
+    .panel { min-width: 0; border: 1px solid var(--line); background: var(--surface); }
+    .panel-head { min-height: 57px; display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 11px 15px; border-bottom: 1px solid var(--line); }
+    .panel-title { margin: 0; font: 600 16px var(--serif); }
+    .panel-kicker { display: block; margin-bottom: 2px; color: var(--muted); font-size: 9px; letter-spacing: .12em; text-transform: uppercase; }
+    .date-tools { display: flex; align-items: center; gap: 5px; }
+    .date-tools .icon-button { width: 28px; height: 28px; }
+    .date-value { min-width: 104px; color: #554c43; text-align: center; font-size: 10px; font-weight: 600; }
+    .day-link { border: 0; background: transparent; color: var(--red); cursor: pointer; font-size: 10px; font-weight: 700; }
+    .schedule-meta { display: flex; justify-content: space-between; padding: 9px 15px; border-bottom: 1px solid var(--line); color: var(--muted); font-size: 10px; }
+    .schedule-meta strong { color: var(--ink); font-weight: 600; }
+    .schedule { padding: 1px 15px 8px; }
+    .slot { min-height: 56px; display: grid; grid-template-columns: 54px minmax(0, 1fr); align-items: stretch; border-bottom: 1px solid #eee8dd; }
+    .slot:last-child { border-bottom: 0; }
+    .slot-time { padding-top: 15px; color: #847a6f; font-size: 10px; }
+    .slot-body { min-width: 0; display: flex; align-items: center; padding: 6px 0 6px 10px; }
+    .slot-empty { width: 100%; display: flex; align-items: center; justify-content: space-between; color: #a69d91; font-size: 10px; }
+    .slot-empty button { border: 0; background: transparent; color: #9f4336; cursor: pointer; font-size: 10px; opacity: .75; }
+    .slot-empty button:hover { opacity: 1; text-decoration: underline; }
+    .event { width: 100%; display: flex; align-items: center; gap: 10px; padding: 7px 9px; border-left: 3px solid var(--red); background: #f4e9df; cursor: pointer; text-align: left; }
+    .event.remote { border-left-color: #59745f; background: #e9eee6; }
+    .event .avatar { width: 29px; height: 29px; background: #a6503f; }
+    .event.remote .avatar { background: #59745f; }
+    .event-info { min-width: 0; flex: 1; }
+    .event-info strong { display: block; overflow: hidden; color: #332924; font-size: 10px; text-overflow: ellipsis; white-space: nowrap; }
+    .event-info small { display: block; color: #76695e; font-size: 9px; }
+    .event-stage { flex: 0 0 auto; color: #806449; font-size: 9px; }
+    .queue-tools { display: flex; align-items: center; gap: 6px; }
+    .search { width: 118px; height: 29px; padding: 0 8px; border: 1px solid var(--line); border-radius: 2px; outline: none; background: #fffdf8; font-size: 10px; }
+    .search:focus { border-color: #a77d50; }
+    .queue-tabs { display: flex; gap: 2px; padding: 9px 12px 0; border-bottom: 1px solid var(--line); }
+    .queue-tabs button { padding: 7px 9px; border: 0; border-bottom: 2px solid transparent; background: transparent; color: var(--muted); cursor: pointer; font-size: 10px; }
+    .queue-tabs button.active { border-bottom-color: var(--red); color: var(--red-dark); font-weight: 700; }
+    .queue-filters { display: flex; flex-wrap: wrap; gap: 7px; padding: 9px 12px; border-bottom: 1px solid var(--line); }
+    .queue-filters .search { width: auto; min-width: 85px; flex: 1; }
+    .queue-filter { height: 29px; min-width: 92px; padding: 0 7px; border: 1px solid var(--line); border-radius: 2px; background: #fffdf8; color: var(--ink); font-size: 10px; }
+    .queue-list { padding: 0 12px; }
+    .candidate { display: flex; align-items: center; gap: 9px; padding: 12px 1px; border-bottom: 1px solid #eee8dd; }
+    .candidate:last-child { border-bottom: 0; }
+    .candidate .avatar { width: 32px; height: 32px; background: #756246; }
+    .candidate:nth-child(3n) .avatar { background: #8a3d32; }
+    .candidate-main { min-width: 0; flex: 1; }
+    .candidate-main strong { display: block; overflow: hidden; font-size: 10px; text-overflow: ellipsis; white-space: nowrap; }
+    .candidate-main small { display: block; overflow: hidden; color: var(--muted); font-size: 9px; text-overflow: ellipsis; white-space: nowrap; }
+    .candidate-side { display: grid; justify-items: end; gap: 5px; }
+    .stage { color: #78634a; font-size: 8px; letter-spacing: .06em; text-transform: uppercase; }
+    .assign-button { padding: 4px 7px; border: 1px solid #d5c5ac; border-radius: 2px; background: #f8f3e8; color: #71372e; cursor: pointer; font-size: 9px; font-weight: 700; }
+    .assign-button:hover { border-color: var(--red); }
+    .empty-queue { padding: 24px 10px; color: var(--muted); text-align: center; font-size: 11px; }
+    .queue-footer { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 11px 13px; border-top: 1px solid var(--line); background: #f8f5ed; }
+    .queue-footer span { color: var(--muted); font-size: 9px; }
+    .queue-footer .button { min-height: 30px; padding: 0 9px; font-size: 9px; }
+    .footnote { display: flex; align-items: center; gap: 7px; margin: 17px 0 0; color: var(--muted); font-size: 9px; }
+    .footnote span { color: var(--red); }
+    dialog { width: min(440px, calc(100vw - 28px)); padding: 0; border: 1px solid #cbbca5; background: var(--surface); color: var(--ink); box-shadow: 0 18px 70px #211d1b40; }
+    dialog::backdrop { background: #1c1715a6; }
+    .dialog-head { display: flex; align-items: start; justify-content: space-between; padding: 17px 19px 13px; border-bottom: 1px solid var(--line); }
+    .dialog-head h2 { margin: 0; font: 600 20px var(--serif); }
+    .dialog-head p { margin: 3px 0 0; color: var(--muted); font-size: 10px; }
+    .dialog-body { display: grid; gap: 11px; padding: 16px 19px; }
+    .field { display: grid; gap: 5px; color: #5f564d; font-size: 10px; font-weight: 600; }
+    .field input, .field select { width: 100%; height: 35px; padding: 0 9px; border: 1px solid var(--line); border-radius: 2px; background: #fffdf8; color: var(--ink); outline: none; }
+    .field input:focus, .field select:focus { border-color: #a77d50; }
+    .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+    .dialog-actions { display: flex; justify-content: end; gap: 8px; padding: 12px 19px; border-top: 1px solid var(--line); }
+    .toast { position: fixed; right: 20px; bottom: 18px; z-index: 5; max-width: min(360px, calc(100vw - 40px)); padding: 11px 15px; border: 1px solid #8d7557; background: #292321; color: #f8f1e5; box-shadow: 0 5px 20px #211d1b24; font-size: 11px; opacity: 0; pointer-events: none; transform: translateY(8px); transition: opacity .18s ease, transform .18s ease; }
+    .toast.show { opacity: 1; transform: translateY(0); }
+    @media (max-width: 1050px) {
+      main { padding-right: 23px; padding-left: 23px; }
+      .app { grid-template-columns: 195px minmax(0, 1fr); }
+      .workspace { grid-template-columns: minmax(0, 1.3fr) minmax(250px, .9fr); gap: 12px; }
+    }
+    @media (max-width: 780px) {
+      .app { display: block; }
+      .sidebar { position: static; width: 100%; height: auto; padding: 10px 14px; flex-direction: row; align-items: center; gap: 14px; }
+      .brand { flex: 0 0 auto; padding: 0; border: 0; }
+      .brand-mark { width: 29px; height: 29px; }
+      .brand-name { font-size: 16px; }
+      .brand-sub, .side-label, .side-bottom { display: none; }
+      .nav { display: flex; gap: 3px; overflow-x: auto; }
+      .nav button { width: auto; padding: 8px 9px; font-size: 10px; white-space: nowrap; }
+      .nav .nav-icon { width: auto; }
+      .nav-count { display: none; }
+      main { padding: 0 17px 25px; }
+      .topbar { height: 48px; }
+      .page-head { padding: 19px 0 14px; }
+      h1 { font-size: 27px; }
+      .workspace { grid-template-columns: 1fr; }
+      .queue-panel { grid-row: 1; }
+      .schedule-panel { grid-row: 2; }
+    }
+    @media (max-width: 520px) {
+      .sidebar { gap: 8px; padding-right: 9px; padding-left: 11px; }
+      .brand { gap: 8px; }
+      .brand-mark { width: 25px; height: 25px; }
+      .brand-name { font-size: 14px; }
+      .nav button { gap: 6px; padding: 7px; }
+      main { padding-right: 12px; padding-left: 12px; }
+      .season-label { display: none; }
+      .page-head { align-items: start; flex-direction: column; gap: 11px; }
+      .head-actions { width: 100%; }
+      .head-actions .button { flex: 1; }
+      h1 { font-size: 25px; }
+      .stats { grid-template-columns: repeat(2, 1fr); }
+      .stat:nth-child(2) { border-right: 0; }
+      .stat:nth-child(-n+2) { border-bottom: 1px solid var(--line); }
+      .stat { min-height: 67px; padding: 10px 12px; }
+      .stat-value { font-size: 21px; }
+      .panel-head { padding-right: 10px; padding-left: 10px; }
+      .search { width: 100px; }
+      .queue-tools .button { width: 30px; min-width: 30px; padding: 0; font-size: 0; }
+      .queue-tools .button span { font-size: 17px; }
+      .slot { grid-template-columns: 44px minmax(0, 1fr); }
+      .event-stage { display: none; }
+      .date-value { min-width: 88px; font-size: 9px; }
+    }
+    @media (prefers-reduced-motion: reduce) { *, *::before, *::after { scroll-behavior: auto !important; transition-duration: .01ms !important; } }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <aside class="sidebar" aria-label="Main navigation">
+      <a class="brand" href="./home.html" aria-label="TrialSync homepage"><div class="brand-mark"><img src="logo.jpeg?v=2" alt=""></div><div><div class="brand-name">TrialSync</div><div class="brand-sub">Campus recruitment</div></div></a>
+      <div class="side-label">Workspace</div>
+      <nav class="nav">
+        <button class="active" data-nav="Overview"><span class="nav-icon">⌂</span>Overview</button>
+        <button data-nav="Schedule"><span class="nav-icon">▦</span>Schedule<span class="nav-count">12</span></button>
+        <button data-nav="Candidates"><span class="nav-icon">♙</span>Candidates<span class="nav-count" id="nav-count">6</span></button>
+        <button data-nav="Interviewers"><span class="nav-icon">♧</span>Interviewers</button>
+      </nav>
+      <div class="side-bottom">
+        <div class="side-label">Active cycle</div>
+        <div class="cycle-card"><div class="cycle-overline">Autumn · 2026</div><div class="cycle-title">Campus trials</div><div class="cycle-meta"><span>Cycle progress</span><span>68%</span></div><div class="progress"><span></span></div></div>
+        <div class="profile"><div class="avatar">AM</div><div><strong>Aarav Mehta</strong><small>Scheduling lead</small></div></div>
+      </div>
+    </aside>
+    <main>
+      <div class="topbar"><div class="breadcrumbs">Recruitment <span aria-hidden="true">/</span> <b>Overview</b></div><div class="top-actions"><span class="season-label">Autumn cycle · 2026</span><button class="icon-button" id="help-button" aria-label="Help" title="Help">?</button><button class="icon-button" id="notification-button" aria-label="Notifications" title="Notifications">♧</button></div></div>
+      <header class="page-head"><div><div class="eyebrow" id="date-eyebrow">Campus recruitment · Autumn 2026</div><h1>Campus drive command</h1><p class="subtitle">Coordinate students, interview rounds, and open hours across every graduating batch.</p></div><div class="head-actions"><button class="button" id="export-button"><span aria-hidden="true">↓</span> Export calendar</button><button class="button button-primary" id="new-interview"><span aria-hidden="true">＋</span> Add student</button></div></header>
+      <section class="stats" aria-label="Scheduling summary"><div class="stat"><span class="stat-label">Interviews today</span><span class="stat-value" id="stat-today">0</span><span class="stat-note">of 8 slots</span></div><div class="stat"><span class="stat-label">Students awaiting</span><span class="stat-value" id="stat-queue">0</span><span class="stat-note" style="color:var(--red)">across batches</span></div><div class="stat"><span class="stat-label">Programs</span><span class="stat-value">4</span><span class="stat-note">MCA · B.Tech · M.Tech · M.Sc</span></div><div class="stat"><span class="stat-label">Conflicts found</span><span class="stat-value" id="stat-conflicts">0</span><span class="stat-note">all clear</span></div></section>
+      <div class="workspace">
+        <section class="panel schedule-panel" id="schedule-panel" aria-labelledby="schedule-title"><div class="panel-head"><div><span class="panel-kicker">Monday · 8 available hours</span><h2 class="panel-title" id="schedule-title">Day schedule</h2></div><div class="date-tools"><button class="icon-button" id="previous-day" aria-label="Previous day" title="Previous day">‹</button><span class="date-value" id="date-value">Mon, Oct 26</span><button class="icon-button" id="next-day" aria-label="Next day" title="Next day">›</button><button class="day-link" id="today-button">Today</button></div></div><div class="schedule-meta"><span><strong>Campus · Interview suite</strong></span><span>Local time · PDT</span></div><div class="schedule" id="schedule"></div></section>
+        <section class="panel queue-panel" id="candidate-panel" aria-labelledby="queue-title"><div class="panel-head"><div><span class="panel-kicker">Campus drive · Student cohorts</span><h2 class="panel-title" id="queue-title">Student queue</h2></div><div class="queue-tools"><button class="button" id="queue-add" title="Add a student"><span aria-hidden="true">＋</span> Add student</button></div></div><div class="queue-tabs" role="tablist" aria-label="Student status"><button class="active" data-filter="all" role="tab" aria-selected="true">All <span id="all-count">0</span></button><button data-filter="ready" role="tab" aria-selected="false">Ready</button><button data-filter="priority" role="tab" aria-selected="false">Priority</button></div><div class="queue-filters"><input class="search" id="candidate-search" type="search" placeholder="Search students" aria-label="Search students"><select class="queue-filter" id="batch-filter" aria-label="Filter by graduating batch"><option value="">All batches</option><option value="2026">Class of 2026</option><option value="2027">Class of 2027</option><option value="2028">Class of 2028</option><option value="2029">Class of 2029</option><option value="2030">Class of 2030</option></select><select class="queue-filter" id="program-filter" aria-label="Filter by degree program"><option value="">All programs</option><option>MCA</option><option>B.Tech</option><option>M.Tech</option><option>M.Sc</option></select></div><div class="queue-list" id="queue-list"></div><div class="queue-footer"><span id="queue-hint">All batches · All programs</span><button class="button button-primary" id="auto-plan"><span aria-hidden="true">✳</span> Auto-plan day</button></div></section>
+      </div>
+      <p class="footnote"><span aria-hidden="true">✦</span> Schedule changes are checked against interviewer availability and candidate time windows.</p>
+    </main>
+  </div>
+  <dialog id="interview-dialog"><form id="interview-form"><div class="dialog-head"><div><h2>Add a student</h2><p>Add a student to the campus recruitment drive.</p></div><button class="icon-button" type="button" id="close-dialog" aria-label="Close">×</button></div><div class="dialog-body"><label class="field">Student name<input name="name" required placeholder="e.g. Aanya Iyer"></label><div class="form-row"><label class="field">Degree program<select name="program" required><option value="">Select program</option><option>MCA</option><option>B.Tech</option><option>M.Tech</option><option>M.Sc</option></select></label><label class="field">Graduating batch<select name="batch" required><option value="">Select batch</option><option value="2026">Class of 2026</option><option value="2027">Class of 2027</option><option value="2028">Class of 2028</option><option value="2029">Class of 2029</option><option value="2030">Class of 2030</option></select></label></div><div class="form-row"><label class="field">Interview stage<select name="stage"><option>Technical screen</option><option>Portfolio review</option><option>Team conversation</option><option>Final interview</option></select></label><label class="field">Priority<select name="priority"><option value="normal">Standard</option><option value="priority">Priority</option></select></label></div></div><div class="dialog-actions"><button class="button" type="button" id="cancel-dialog">Cancel</button><button class="button button-primary" type="submit">Add student</button></div></form></dialog>
+  <div class="toast" id="toast" role="status" aria-live="polite"></div>
+  <script>
+    let candidates = [];
+    let queue = [];
+    const times = ["09:00", "10:00", "11:00", "12:00", "13:00", "14:00", "15:00", "16:00"];
+    let activeFilter = "all";
+    let activeBatch = "";
+    let activeProgram = "";
+    let dayOffset = 0;
+    const baseDate = new Date(2026, 9, 26);
+    let activeDate = "2026-10-26";
+    let toastTimer;
+    const $ = (selector) => document.querySelector(selector);
+    const escapeHTML = (value) => String(value).replace(/[&<>"']/g, (character) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[character]);
+    const initials = (name) => name.split(/\s+/).map((part) => part[0]).slice(0, 2).join("").toUpperCase();
+    function showToast(message) {
+      const toast = $("#toast");
+      toast.textContent = message;
+      toast.classList.add("show");
+      clearTimeout(toastTimer);
+      toastTimer = setTimeout(() => toast.classList.remove("show"), 2800);
+    }
+    function updateStats() {
+      $("#stat-today").textContent = candidates.length;
+      $("#stat-queue").textContent = queue.length;
+      $("#nav-count").textContent = queue.length;
+      $("#all-count").textContent = queue.length;
+      $("#stat-conflicts").textContent = "0";
+    }
+    async function loadData() {
+      try {
+        const response = await fetch(`/api/candidates?date=${activeDate}`);
+        if (!response.ok) throw new Error("Could not load campus drive data.");
+        const data = await response.json();
+        candidates = data.scheduled.map((student) => ({ ...student, time: student.interview_time, priority: Boolean(student.priority), remote: Boolean(student.remote) }));
+        queue = data.queue.map((student) => ({ ...student, priority: Boolean(student.priority) }));
+        renderAll();
+      } catch (error) {
+        showToast(error.message || "Could not connect to the scheduling server.");
+      }
+    }
+    async function scheduleCandidate(id, time) {
+      const response = await fetch(`/api/candidates/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status: "scheduled", date: activeDate, time, interviewer: "Aarav Mehta", remote: true })
+      });
+      const result = await response.json();
+      if (!response.ok) throw new Error(result.error || "Could not schedule this student.");
+    }
+    function renderSchedule() {
+      const schedule = $("#schedule");
+      schedule.innerHTML = times.map((time) => {
+        const event = candidates.find((candidate) => candidate.time === time);
+        const hour = Number(time.slice(0, 2));
+        const label = `${hour > 12 ? hour - 12 : hour}:00 ${hour >= 12 ? "PM" : "AM"}`;
+        const body = event
+          ? `<button class="event ${event.remote ? "remote" : ""}" data-event="${event.id}" aria-label="View ${escapeHTML(event.name)} interview"><span class="avatar">${escapeHTML(initials(event.name))}</span><span class="event-info"><strong>${escapeHTML(event.name)} · ${escapeHTML(event.program)}</strong><small>Class of ${escapeHTML(event.batch)} · ${escapeHTML(event.interviewer)}</small></span><span class="event-stage">${escapeHTML(event.stage)}</span></button>`
+          : `<div class="slot-empty"><span>Available</span><button data-slot="${time}" aria-label="Schedule an interview at ${label}">＋ Add interview</button></div>`;
+        return `<div class="slot"><span class="slot-time">${label}</span><div class="slot-body">${body}</div></div>`;
+      }).join("");
+      schedule.querySelectorAll("[data-slot]").forEach((button) => button.addEventListener("click", () => {
+        const next = queue[0];
+        if (!next) return showToast("The student queue is clear. Add a student to continue.");
+        assignCandidate(next.id, button.dataset.slot);
+      }));
+      schedule.querySelectorAll("[data-event]").forEach((button) => button.addEventListener("click", () => {
+        const event = candidates.find((candidate) => candidate.id === Number(button.dataset.event));
+        if (event) showToast(`${event.name} · ${event.stage} · ${formatTime(event.time)} with ${event.interviewer}.`);
+      }));
+    }
+    function renderQueue() {
+      const term = $("#candidate-search").value.trim().toLowerCase();
+      const filtered = queue.filter((candidate) => {
+        const matchesFilter = activeFilter === "all" || (activeFilter === "ready" ? candidate.stage === "Technical screen" : candidate.priority);
+        const matchesSearch = `${candidate.name} ${candidate.program} ${candidate.stage} ${candidate.batch}`.toLowerCase().includes(term);
+        const matchesBatch = !activeBatch || candidate.batch === activeBatch;
+        const matchesProgram = !activeProgram || candidate.program === activeProgram;
+        return matchesFilter && matchesSearch && matchesBatch && matchesProgram;
+      });
+      $("#queue-list").innerHTML = filtered.length ? filtered.map((student) => `<article class="candidate"><span class="avatar">${escapeHTML(initials(student.name))}</span><span class="candidate-main"><strong>${escapeHTML(student.name)}</strong><small>${escapeHTML(student.program)} · Class of ${escapeHTML(student.batch)}</small></span><span class="candidate-side"><span class="stage">${student.priority ? "Priority" : escapeHTML(student.stage)}</span><button class="assign-button" data-assign="${student.id}">Assign next slot</button></span></article>`).join("") : `<div class="empty-queue">${queue.length ? "No students match these filters." : "All students have an interview time."}</div>`;
+      $("#queue-list").querySelectorAll("[data-assign]").forEach((button) => button.addEventListener("click", () => assignCandidate(Number(button.dataset.assign))));
+      $("#queue-hint").textContent = `${filtered.length} of ${queue.length} students · ${activeBatch ? `Class of ${activeBatch}` : "all batches"} · ${activeProgram || "all programs"}`;
+      updateStats();
+    }
+    function renderAll() { renderSchedule(); renderQueue(); }
+    function formatTime(time) {
+      const hour = Number(time.slice(0, 2));
+      return `${hour > 12 ? hour - 12 : hour}:00 ${hour >= 12 ? "PM" : "AM"}`;
+    }
+    async function assignCandidate(id, preferredTime = "") {
+      const student = queue.find((item) => item.id === id);
+      const openTime = preferredTime || times.find((time) => !candidates.some((event) => event.time === time));
+      if (!student) return;
+      if (!openTime) return showToast("No open hours remain today. Try another date.");
+      try {
+        await scheduleCandidate(id, openTime);
+        await loadData();
+        showToast(`${student.name} scheduled at ${formatTime(openTime)}.`);
+      } catch (error) {
+        showToast(error.message);
+      }
+    }
+    function updateDate() {
+      const date = new Date(baseDate);
+      date.setDate(date.getDate() + dayOffset);
+      activeDate = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
+      const options = { weekday: "short", month: "short", day: "numeric" };
+      $("#date-value").textContent = date.toLocaleDateString("en-US", options);
+      $("#schedule-panel .panel-kicker").textContent = `${date.toLocaleDateString("en-US", { weekday: "long" })} · 8 interview slots`;
+      $("#date-eyebrow").textContent = `${date.toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric", year: "numeric" })} · Campus recruitment`;
+    }
+    function exportCalendar() {
+      const date = new Date(`${activeDate}T12:00:00`);
+      const datePart = `${date.getFullYear()}${String(date.getMonth() + 1).padStart(2, "0")}${String(date.getDate()).padStart(2, "0")}`;
+      const events = candidates.map((candidate) => {
+        const hour = candidate.time.replace(":", "") + "00";
+        const endHour = `${String(Number(candidate.time.slice(0, 2)) + 1).padStart(2, "0")}0000`;
+        return `BEGIN:VEVENT\nUID:${candidate.id}-${datePart}@trialsync.local\nDTSTAMP:${datePart}T080000Z\nDTSTART:${datePart}T${hour}\nDTEND:${datePart}T${endHour}\nSUMMARY:${candidate.stage}: ${candidate.name}\nLOCATION:${candidate.remote ? "Video call" : "Interview suite"}\nDESCRIPTION:${candidate.program}\\nClass of ${candidate.batch}\\nInterviewer: ${candidate.interviewer}\nEND:VEVENT`;
+      }).join("\n");
+      const blob = new Blob([`BEGIN:VCALENDAR\nVERSION:2.0\nPRODID:-//TrialSync//Campus Scheduler//EN\n${events}\nEND:VCALENDAR`], { type: "text/calendar" });
+      const link = document.createElement("a");
+      link.href = URL.createObjectURL(blob);
+      link.download = "trialsync-campus-interviews.ics";
+      link.click();
+      URL.revokeObjectURL(link.href);
+      showToast("Calendar export downloaded.");
+    }
+    const dialog = $("#interview-dialog");
+    function openDialog() { dialog.showModal(); }
+    $("#new-interview").addEventListener("click", openDialog);
+    $("#queue-add").addEventListener("click", openDialog);
+    $("#close-dialog").addEventListener("click", () => dialog.close());
+    $("#cancel-dialog").addEventListener("click", () => dialog.close());
+    $("#interview-form").addEventListener("submit", async (event) => {
+      event.preventDefault();
+      const formElement = event.currentTarget;
+      const form = new FormData(formElement);
+      try {
+        const response = await fetch("/api/candidates", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ name: form.get("name"), program: form.get("program"), batch: form.get("batch"), stage: form.get("stage"), priority: form.get("priority") === "priority" })
+        });
+        const result = await response.json();
+        if (!response.ok) throw new Error(result.error || "Could not add this student.");
+        formElement.reset();
+        dialog.close();
+        await loadData();
+        showToast("Student added to the campus recruitment queue.");
+      } catch (error) {
+        showToast(error.message);
+      }
+    });
+    $("#candidate-search").addEventListener("input", renderQueue);
+    $("#batch-filter").addEventListener("change", (event) => { activeBatch = event.currentTarget.value; renderQueue(); });
+    $("#program-filter").addEventListener("change", (event) => { activeProgram = event.currentTarget.value; renderQueue(); });
+    document.querySelectorAll(".queue-tabs button").forEach((button) => button.addEventListener("click", () => {
+      activeFilter = button.dataset.filter;
+      document.querySelectorAll(".queue-tabs button").forEach((tab) => { tab.classList.toggle("active", tab === button); tab.setAttribute("aria-selected", String(tab === button)); });
+      renderQueue();
+    }));
+    $("#auto-plan").addEventListener("click", async () => {
+      const openTimes = times.filter((time) => !candidates.some((candidate) => candidate.time === time));
+      const planned = Math.min(openTimes.length, queue.length);
+      try {
+        for (let index = 0; index < planned; index += 1) {
+          await scheduleCandidate(queue[index].id, openTimes[index]);
+        }
+        await loadData();
+        showToast(planned ? `${planned} student interview${planned === 1 ? "" : "s"} scheduled.` : "No open hours remain for today's queue.");
+      } catch (error) {
+        await loadData();
+        showToast(error.message);
+      }
+    });
+    $("#previous-day").addEventListener("click", async () => { dayOffset -= 1; updateDate(); await loadData(); showToast("Showing the previous day's schedule."); });
+    $("#next-day").addEventListener("click", async () => { dayOffset += 1; updateDate(); await loadData(); showToast("Showing the next day's schedule."); });
+    $("#today-button").addEventListener("click", async () => { dayOffset = 0; updateDate(); await loadData(); showToast("Returned to today."); });
+    $("#export-button").addEventListener("click", exportCalendar);
+    $("#help-button").addEventListener("click", () => showToast("Assign interviews from the queue, or let Auto-plan fill open hours."));
+    $("#notification-button").addEventListener("click", () => showToast(queue.length ? `${queue.length} candidates are waiting to be scheduled.` : "You're all caught up."));
+    document.querySelectorAll("[data-nav]").forEach((button) => button.addEventListener("click", () => {
+      document.querySelectorAll("[data-nav]").forEach((item) => item.classList.toggle("active", item === button));
+      const target = button.dataset.nav === "Candidates" ? "candidate-panel" : "schedule-panel";
+      document.getElementById(target).scrollIntoView({ behavior: "smooth", block: "start" });
+      showToast(`${button.dataset.nav} view selected.`);
+    }));
+    updateDate();
+    loadData();
+  </script>
+</body>
+</html>

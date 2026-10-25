@@ -1,0 +1,10 @@
+{
+    "chat.tools.terminal.autoApprove": {
+        "npm install": true,
+        "npm run build": true,
+        "/^python -m py_compile server\\.py$/": {
+            "approve": true,
+            "matchCommandLine": true
+        }
+    }
+}

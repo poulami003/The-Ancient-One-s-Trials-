@@ -1,0 +1,164 @@
+<!doctype html>
+<html lang="en">
+<head>
+	<meta charset="UTF-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1.0">
+	<meta name="theme-color" content="#f4f2ec">
+	<meta name="description" content="TrialSync organizes campus recruitment drives with batch-wise student queues, degree-program filters, interview schedules, and calendar exports.">
+	<title>TrialSync | Campus recruitment, in step</title>
+	<link rel="preconnect" href="https://fonts.googleapis.com">
+	<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+	<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Playfair+Display:wght@500;600;700&display=swap" rel="stylesheet">
+	<style>
+		:root {
+			--paper: #f4f2ec;
+			--surface: #fbfaf7;
+			--ink: #211f1d;
+			--muted: #66635f;
+			--line: #d9d4cb;
+			--green: #315e4d;
+			--green-deep: #21483b;
+			--red: #861e2b;
+			--gold: #b99a61;
+			--serif: "Playfair Display", Georgia, serif;
+			--sans: "DM Sans", "Segoe UI", sans-serif;
+		}
+		* { box-sizing: border-box; }
+		html { scroll-behavior: smooth; }
+		body { margin: 0; min-width: 320px; background: var(--paper); color: var(--ink); font: 14px/1.55 var(--sans); }
+		a { color: inherit; text-decoration: none; }
+		.site-header { position: absolute; z-index: 2; top: 0; left: 0; width: 100%; display: flex; align-items: center; justify-content: space-between; gap: 24px; padding: 16px clamp(20px, 5vw, 76px); background: rgba(251,250,247,.92); }
+		.brand { display: flex; align-items: center; gap: 10px; flex: 0 0 auto; }
+		.brand img { width: 40px; height: 40px; border: 1px solid var(--gold); object-fit: cover; }
+		.brand-copy { display: grid; gap: 1px; }
+		.brand-name { font: 600 20px var(--serif); }
+		.brand-caption { color: var(--muted); font-size: 8px; letter-spacing: .16em; text-transform: uppercase; }
+		.site-nav { display: flex; align-items: center; gap: clamp(15px, 2.7vw, 36px); font-size: 11px; }
+		.site-nav a:not(.nav-cta):hover { color: var(--red); }
+		.nav-cta { padding: 10px 14px; border: 1px solid var(--red); background: var(--red); color: white; font-weight: 700; }
+		.nav-cta:hover, .button-primary:hover { background: #6f1823; }
+		.hero { min-height: min(750px, 90vh); min-height: min(750px, 90svh); position: relative; display: flex; align-items: center; overflow: hidden; background: var(--paper); }
+		.hero-image { position: absolute; inset: 0 0 0 auto; width: 68%; height: 100%; object-fit: cover; object-position: 78% center; }
+		.hero::after { position: absolute; inset: 0; content: ""; background: linear-gradient(90deg, var(--paper) 0%, var(--paper) 37%, rgba(244,242,236,.94) 48%, rgba(244,242,236,.48) 64%, rgba(244,242,236,.04) 100%); }
+		.hero-content { position: relative; z-index: 1; width: min(650px, 58vw); margin: 48px 0 0 clamp(24px, 7vw, 100px); padding: 48px 0 72px; animation: rise-in .6s ease-out both; }
+		.eyebrow, .section-kicker { color: var(--red); font-size: 9px; font-weight: 700; letter-spacing: .2em; text-transform: uppercase; }
+		h1 { max-width: 620px; margin: 15px 0; font: 600 62px/1.04 var(--serif); letter-spacing: 0; }
+		.hero-copy { max-width: 470px; margin: 0; color: var(--muted); font-size: 14px; }
+		.hero-actions { display: flex; align-items: center; flex-wrap: wrap; gap: 18px; margin-top: 26px; }
+		.button-primary, .button-secondary { min-height: 44px; display: inline-flex; align-items: center; justify-content: center; gap: 11px; padding: 0 15px; font-size: 11px; font-weight: 700; }
+		.button-primary { background: var(--red); color: white; }
+		.button-secondary { border: 1px solid #aaa49a; background: rgba(251,250,247,.74); color: var(--ink); }
+		.button-secondary:hover { border-color: var(--red); color: var(--red); }
+		.proof-row { display: flex; flex-wrap: wrap; gap: 0; margin-top: 39px; }
+		.proof-item { min-width: 108px; padding: 0 17px; border-left: 1px solid var(--line); }
+		.proof-item:first-child { padding-left: 0; border-left: 0; }
+		.proof-item strong { display: block; font: 600 20px var(--serif); }
+		.proof-item span { display: block; color: var(--muted); font-size: 9px; }
+		.section { padding: 72px clamp(22px, 8vw, 120px); }
+		.section-heading { max-width: 680px; margin-bottom: 32px; }
+		h2 { margin: 8px 0 0; font: 500 42px/1.15 var(--serif); letter-spacing: 0; }
+		.section-intro { max-width: 550px; margin: 12px 0 0; color: var(--muted); font-size: 13px; }
+		.features { background: var(--surface); }
+		.feature-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); }
+		.feature { min-height: 195px; padding: 23px 22px 25px 0; }
+		.feature + .feature { padding-left: 22px; border-left: 1px solid var(--line); }
+		.feature-number { color: var(--red); font: 500 14px var(--serif); }
+		.feature h3 { margin: 22px 0 7px; font: 600 19px var(--serif); }
+		.feature p { max-width: 315px; margin: 0; color: var(--muted); font-size: 11px; }
+		.about { display: grid; grid-template-columns: minmax(200px, .8fr) minmax(280px, 1.2fr); align-items: start; gap: clamp(30px, 8vw, 120px); background: #e7ece7; }
+		.about h2 { max-width: 420px; }
+		.about-copy { padding-top: 5px; }
+		.about-copy p { margin: 0 0 15px; color: #52645b; font-size: 13px; }
+		.about-note { display: flex; align-items: center; gap: 9px; margin-top: 23px; padding-top: 13px; border-top: 1px solid #c5d0c6; color: var(--green); font-size: 9px; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; }
+		.footer { display: flex; align-items: center; justify-content: space-between; gap: 20px; padding: 19px clamp(22px, 8vw, 120px); background: #183a32; color: #d2ddd5; font-size: 9px; }
+		.footer-brand { color: #f5f6f1; font: 15px var(--serif); }
+		.footer a { color: #f5f6f1; }
+		.footer a:hover { color: #ddc58f; }
+		@keyframes rise-in { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: translateY(0); } }
+		@media (max-width: 760px) {
+			.site-header { padding: 12px 17px; }
+			.brand { gap: 8px; }
+			.brand img { width: 34px; height: 34px; }
+			.brand-name { font-size: 16px; }
+			.brand-caption { display: none; }
+			.site-nav { gap: 12px; font-size: 10px; }
+			.site-nav a:nth-child(3) { display: none; }
+			.nav-cta { padding: 8px 9px; }
+			.hero { min-height: 680px; min-height: 88svh; }
+			.hero-image { width: 100%; object-position: 70% center; opacity: .32; }
+			.hero::after { background: linear-gradient(90deg, rgba(244,242,236,.97), rgba(244,242,236,.84) 72%, rgba(244,242,236,.62)), linear-gradient(0deg, rgba(244,242,236,.6), transparent 45%); }
+			.hero-content { width: auto; margin: 48px 22px 0; padding: 34px 0 60px; }
+			h1 { max-width: 560px; font-size: 48px; }
+			h2 { font-size: 34px; }
+			.hero-copy { font-size: 13px; }
+			.proof-row { margin-top: 30px; }
+			.proof-item { min-width: 84px; padding: 0 10px; }
+			.proof-item strong { font-size: 17px; }
+			.section { padding: 54px 22px; }
+			.feature-grid { grid-template-columns: 1fr; }
+			.feature { min-height: 0; padding: 18px 0 20px; }
+			.feature + .feature { padding-left: 0; border-top: 1px solid var(--line); border-left: 0; }
+			.feature h3 { margin-top: 10px; }
+			.about { grid-template-columns: 1fr; gap: 19px; }
+			.footer { align-items: start; flex-direction: column; gap: 8px; padding: 17px 22px; }
+		}
+		@media (max-width: 390px) { h1 { font-size: 41px; } .proof-item { min-width: 74px; padding: 0 8px; } }
+		@media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } *, *::before, *::after { animation-duration: .01ms !important; } }
+	</style>
+</head>
+<body>
+	<header class="site-header">
+		<a class="brand" href="./home.html" aria-label="TrialSync home">
+			<img src="logo.jpeg?v=2" alt="">
+			<span class="brand-copy"><span class="brand-name">TrialSync</span><span class="brand-caption">Campus interview scheduling</span></span>
+		</a>
+		<nav class="site-nav" aria-label="Main navigation">
+			<a href="./home.html" aria-current="page">Home</a>
+			<a href="#features">Features</a>
+			<a href="#about">About</a>
+			<a href="#contact">Contact</a>
+			<a class="nav-cta" href="./index.html">Open scheduler <span aria-hidden="true">→</span></a>
+		</nav>
+	</header>
+	<main>
+		<section class="hero" aria-labelledby="hero-title">
+			<img class="hero-image" src="photo.jpeg" alt="TrialSync interview scheduling workspace in a bright campus recruitment office">
+			<div class="hero-content">
+				<div class="eyebrow">Campus recruitment, coordinated across every batch</div>
+				<h1 id="hero-title">One campus drive. Every student in step.</h1>
+				<p class="hero-copy">Organize MCA, B.Tech, M.Tech, and M.Sc students by graduating batch, move them through interview rounds, and keep the whole drive on schedule.</p>
+				<div class="hero-actions">
+					<a class="button-primary" href="./index.html">Open the scheduler <span aria-hidden="true">→</span></a>
+					<a class="button-secondary" href="#features">Explore features <span aria-hidden="true">↓</span></a>
+				</div>
+				<div class="proof-row" aria-label="Campus drive capabilities">
+					<div class="proof-item"><strong>4</strong><span>Degree programs</span></div>
+					<div class="proof-item"><strong>5</strong><span>Graduating batches</span></div>
+					<div class="proof-item"><strong>1</strong><span>Shared schedule</span></div>
+				</div>
+			</div>
+		</section>
+		<section class="section features" id="features" aria-labelledby="features-title">
+			<div class="section-heading">
+				<div class="section-kicker">The campus recruitment desk</div>
+				<h2 id="features-title">From student roster to interview day.</h2>
+				<p class="section-intro">Keep degree programs and graduating cohorts organized while your recruitment team plans each round and interviewer.</p>
+			</div>
+			<div class="feature-grid">
+				<article class="feature"><div class="feature-number">01 / ORGANIZE COHORTS</div><h3>Degree and batch filters</h3><p>Group MCA, B.Tech, M.Tech, and M.Sc students by graduating year, then focus the queue on the cohort you are recruiting.</p></article>
+				<article class="feature"><div class="feature-number">02 / PLAN EACH ROUND</div><h3>Interview day at a glance</h3><p>See booked interviews and open hours together, then assign students to the next available conversation.</p></article>
+				<article class="feature"><div class="feature-number">03 / SHARE THE PLAN</div><h3>Calendar-ready schedules</h3><p>Export interview times and student details so campus teams can coordinate across the drive.</p></article>
+			</div>
+		</section>
+		<section class="section about" id="about" aria-labelledby="about-title">
+			<div><div class="section-kicker">About TrialSync</div><h2 id="about-title">One drive, many batches, a clearer process.</h2></div>
+			<div class="about-copy">
+				<p>TrialSync is a campus recruitment workspace for teams meeting students across MCA, B.Tech, M.Tech, M.Sc, and multiple graduating batches.</p>
+				<p>Maintain a batch-wise student queue, plan interview rounds from one day view, and give your recruitment team a calendar-ready schedule.</p>
+				<div class="about-note"><span aria-hidden="true">✦</span> Thoughtful by design. Clear by default.</div>
+			</div>
+		</section>
+	</main>
+	<footer class="footer" id="contact"><span class="footer-brand">TrialSync</span><span>Campus recruitment, in step.</span><a href="./index.html">Go to the scheduler <span aria-hidden="true">↗</span></a></footer>
+</body>
+</html>
