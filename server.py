@@ -806,6 +806,42 @@ class TrialsHandler(SimpleHTTPRequestHandler):
                         "SELECT id, candidate_id, message, created_at, read FROM notifications ORDER BY id DESC LIMIT 30"
                     ).fetchall()
             return self.send_json(200, {"notifications": [dict(row) for row in notifications]})
+        if path == "/api/status-board":
+            if self.require_roles("coordinator") is None:
+                return
+            with connect_database() as connection:
+                rows = connection.execute(
+                    """SELECT c.id, c.name, c.program, c.batch, c.stage, c.current_round,
+                              c.priority, c.status, c.outcome, c.interview_date, c.interview_time,
+                              c.interviewer, r.name AS room,
+                              (SELECT group_concat(pv.name, ', ')
+                                 FROM interviews i
+                                 JOIN interview_panelists p ON p.interview_id = i.id
+                                 JOIN interviewers pv ON pv.id = p.interviewer_id
+                                WHERE i.candidate_id = c.id AND i.round_number = c.current_round
+                                  AND i.status = 'scheduled') AS panel,
+                              EXISTS (SELECT 1 FROM candidate_availability a
+                                       WHERE a.candidate_id = c.id AND a.available = 1) AS has_availability
+                       FROM candidates c LEFT JOIN rooms r ON r.id = c.room_id
+                       ORDER BY c.interview_date, c.interview_time, c.priority DESC, c.name"""
+                ).fetchall()
+            board = {"scheduled": [], "pending": [], "passed": [], "rejected": []}
+            for row in rows:
+                item = dict(row)
+                item["has_availability"] = bool(item["has_availability"])
+                if item["outcome"] == "passed":
+                    board["passed"].append(item)
+                elif item["outcome"] == "rejected":
+                    board["rejected"].append(item)
+                elif item["status"] == "scheduled":
+                    board["scheduled"].append(item)
+                else:
+                    board["pending"].append(item)
+            board["pending"].sort(key=lambda item: (-item["priority"], item["name"]))
+            return self.send_json(200, {
+                "counts": {name: len(items) for name, items in board.items()},
+                **board,
+            })
         if path == "/api/rankings":
             if self.require_roles("coordinator", "interviewer") is None:
                 return

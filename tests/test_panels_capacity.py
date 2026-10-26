@@ -5,9 +5,9 @@ import server
 from scheduler import find_assignments, remaining_capacity
 
 try:
-    from test_scheduler import SchedulerApiTests as _Base
+    from test_scheduler import ApiTestCase as _Base
 except ImportError:  # run as tests.test_panels_capacity
-    from tests.test_scheduler import SchedulerApiTests as _Base
+    from tests.test_scheduler import ApiTestCase as _Base
 
 DAY = "2026-10-27"  # a Tuesday with all demo calendars open
 

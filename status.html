@@ -1,0 +1,383 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="theme-color" content="#f3efe5">
+  <title>TrialSync — Status board</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Playfair+Display:wght@500;600;700&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --paper: #f3efe5;
+      --surface: #fbf9f3;
+      --ink: #211e1d;
+      --muted: #77716a;
+      --line: #ded6c8;
+      --red: #9d2929;
+      --red-dark: #702020;
+      --gold: #b88945;
+      --green: #426b57;
+      --green-soft: #e3ece5;
+      --amber: #8a5a14;
+      --amber-soft: #f4e8cf;
+      --red-soft: #f3dcd8;
+      --serif: "Playfair Display", Georgia, serif;
+      --sans: "DM Sans", "Segoe UI", sans-serif;
+    }
+    * { box-sizing: border-box; }
+    body { margin: 0; min-width: 320px; background: var(--paper); color: var(--ink); font: 14px/1.45 var(--sans); }
+    button, input { font: inherit; color: inherit; }
+    .page { max-width: 1240px; margin: 0 auto; padding: 0 24px 48px; }
+    .topbar { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 16px 0; border-bottom: 1px solid var(--line); }
+    .brand { display: flex; align-items: center; gap: 10px; color: inherit; text-decoration: none; }
+    .brand-mark { width: 32px; height: 32px; overflow: hidden; border: 1px solid var(--gold); background: #211d1b; }
+    .brand-mark img { width: 100%; height: 100%; object-fit: contain; display: block; }
+    .brand-name { font: 600 18px var(--serif); letter-spacing: .04em; }
+    .back { color: var(--red); font-weight: 600; text-decoration: none; }
+    .back:hover { text-decoration: underline; }
+    header.head { padding: 28px 0 18px; }
+    .eyebrow { color: var(--red); font-size: 10px; letter-spacing: .18em; text-transform: uppercase; }
+    h1 { margin: 6px 0 6px; font: 600 34px/1.1 var(--serif); }
+    .subtitle { margin: 0; max-width: 62ch; color: var(--muted); }
+
+    .toolbar { display: flex; flex-wrap: wrap; align-items: end; gap: 14px; padding: 14px; border: 1px solid var(--line); background: var(--surface); }
+    .field { display: grid; gap: 4px; }
+    .field label { color: var(--muted); font-size: 10px; letter-spacing: .12em; text-transform: uppercase; }
+    input[type="date"], input[type="search"] { height: 38px; padding: 0 10px; border: 1px solid var(--line); border-radius: 3px; background: #fff; }
+    input:focus-visible, button:focus-visible, a:focus-visible { outline: 2px solid var(--gold); outline-offset: 2px; }
+    .button { height: 38px; padding: 0 16px; border: 1px solid var(--line); border-radius: 3px; background: var(--surface); cursor: pointer; font-weight: 600; }
+    .button:hover { border-color: var(--gold); }
+    .button-primary { border-color: var(--red); background: var(--red); color: #fff; }
+    .button-primary:hover { background: var(--red-dark); border-color: var(--red-dark); }
+    .button[disabled] { opacity: .55; cursor: progress; }
+    .spacer { flex: 1 1 auto; }
+    .updated { color: var(--muted); font-size: 11px; align-self: center; }
+
+    .tiles { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; margin: 16px 0; }
+    .tile { padding: 14px 16px; border: 1px solid var(--line); border-top-width: 3px; background: var(--surface); }
+    .tile .label { color: var(--muted); font-size: 10px; letter-spacing: .14em; text-transform: uppercase; }
+    .tile .value { margin-top: 4px; font: 600 32px/1 var(--serif); }
+    .tile.scheduled { border-top-color: var(--green); }
+    .tile.pending { border-top-color: var(--gold); }
+    .tile.passed { border-top-color: var(--green); }
+    .tile.rejected { border-top-color: var(--red); }
+    .progress { margin: 0 0 18px; }
+    .progress-text { display: flex; justify-content: space-between; margin-bottom: 6px; color: var(--muted); font-size: 12px; }
+    .bar { height: 8px; background: #e3dccd; }
+    .bar span { display: block; height: 100%; width: 0; background: var(--green); transition: width .4s ease; }
+
+    .filters { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 14px; }
+    .chip { padding: 6px 12px; border: 1px solid var(--line); border-radius: 999px; background: var(--surface); cursor: pointer; font-size: 12px; font-weight: 600; }
+    .chip[aria-pressed="true"] { border-color: var(--ink); background: var(--ink); color: #fff; }
+
+    .columns { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; align-items: start; }
+    .panel { border: 1px solid var(--line); background: var(--surface); }
+    .panel[hidden] { display: none; }
+    .panel-head { display: flex; align-items: center; justify-content: space-between; padding: 14px 16px; border-bottom: 1px solid var(--line); }
+    .panel-head h2 { margin: 0; font: 600 20px var(--serif); }
+    .count { min-width: 28px; padding: 2px 9px; border-radius: 999px; font-size: 12px; font-weight: 700; text-align: center; }
+    .count.scheduled { background: var(--green-soft); color: var(--green); }
+    .count.pending { background: var(--amber-soft); color: var(--amber); }
+    .count.finished { background: #e8e3d8; color: var(--muted); }
+    .list { margin: 0; padding: 0; list-style: none; }
+    .row { display: grid; grid-template-columns: 36px minmax(0, 1fr) auto; gap: 12px; align-items: center; padding: 12px 16px; border-bottom: 1px solid var(--line); }
+    .row:last-child { border-bottom: 0; }
+    .avatar { width: 36px; height: 36px; display: grid; place-items: center; border-radius: 50%; background: #8a342a; color: #fff; font-size: 12px; font-weight: 600; }
+    .row.pending .avatar { background: var(--gold); }
+    .row.finished .avatar { background: #8c857c; }
+    .name { font-weight: 600; }
+    .meta { color: var(--muted); font-size: 12px; }
+    .meta b { color: var(--ink); font-weight: 600; }
+    .right { display: grid; gap: 4px; justify-items: end; text-align: right; }
+    .badge { display: inline-block; padding: 2px 9px; border-radius: 999px; font-size: 11px; font-weight: 700; white-space: nowrap; }
+    .badge.round { background: #ece6d9; color: var(--ink); }
+    .badge.ok { background: var(--green-soft); color: var(--green); }
+    .badge.wait { background: var(--amber-soft); color: var(--amber); }
+    .badge.fail { background: var(--red-soft); color: var(--red-dark); }
+    .star { color: var(--gold); }
+    .empty { padding: 28px 16px; color: var(--muted); text-align: center; }
+    .finished-wrap { margin-top: 16px; }
+
+    .banner { margin: 14px 0; padding: 12px 14px; border: 1px solid var(--line); background: var(--surface); }
+    .banner.error { border-color: var(--red); background: var(--red-soft); }
+    .banner.ok { border-color: var(--green); background: var(--green-soft); }
+    .banner a { color: var(--red); font-weight: 600; }
+    .sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
+
+    @media (max-width: 900px) {
+      .columns { grid-template-columns: 1fr; }
+      .tiles { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    }
+    @media (max-width: 560px) {
+      .page { padding: 0 16px 40px; }
+      h1 { font-size: 28px; }
+      .row { grid-template-columns: 36px minmax(0, 1fr); }
+      .right { grid-column: 2; justify-items: start; text-align: left; grid-auto-flow: column; justify-content: start; gap: 6px; }
+      .spacer { display: none; }
+      .toolbar .field, .toolbar .button { flex: 1 1 100%; }
+    }
+    @media (prefers-reduced-motion: reduce) { .bar span { transition: none; } }
+  </style>
+</head>
+<body>
+  <div class="page">
+    <div class="topbar">
+      <a class="brand" href="./login.html">
+        <span class="brand-mark"><img src="./logo.jpeg" alt=""></span>
+        <span class="brand-name">TrialSync</span>
+      </a>
+      <a class="back" href="./login.html">← Back to dashboard</a>
+    </div>
+
+    <header class="head">
+      <div class="eyebrow">Coordinator · Live view</div>
+      <h1>Interview status board</h1>
+      <p class="subtitle">See at a glance which students already have an interview slot and who is still waiting to be scheduled.</p>
+    </header>
+
+    <div id="banner" class="banner" role="status" aria-live="polite" hidden></div>
+
+    <div id="app" hidden>
+      <section class="toolbar" aria-label="Controls">
+        <div class="field">
+          <label for="plan-date">Plan date</label>
+          <input id="plan-date" type="date">
+        </div>
+        <button class="button button-primary" id="plan-button" type="button">Run auto-plan for this date</button>
+        <div class="field">
+          <label for="search">Search student</label>
+          <input id="search" type="search" placeholder="Name, program, batch…" autocomplete="off">
+        </div>
+        <span class="spacer"></span>
+        <span class="updated" id="updated">Loading…</span>
+        <button class="button" id="refresh" type="button">Refresh</button>
+      </section>
+
+      <section class="tiles" aria-label="Summary">
+        <div class="tile scheduled"><div class="label">Scheduled</div><div class="value" id="n-scheduled">–</div></div>
+        <div class="tile pending"><div class="label">Pending</div><div class="value" id="n-pending">–</div></div>
+        <div class="tile passed"><div class="label">Passed all rounds</div><div class="value" id="n-passed">–</div></div>
+        <div class="tile rejected"><div class="label">Not progressing</div><div class="value" id="n-rejected">–</div></div>
+      </section>
+
+      <div class="progress">
+        <div class="progress-text"><span>Active students with an interview slot</span><span id="progress-label">–</span></div>
+        <div class="bar" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" id="bar"><span id="bar-fill"></span></div>
+      </div>
+
+      <div class="filters" role="group" aria-label="Filter">
+        <button class="chip" type="button" data-filter="all" aria-pressed="true">All</button>
+        <button class="chip" type="button" data-filter="scheduled" aria-pressed="false">Scheduled</button>
+        <button class="chip" type="button" data-filter="pending" aria-pressed="false">Pending</button>
+        <button class="chip" type="button" data-filter="finished" aria-pressed="false">Finished</button>
+      </div>
+
+      <div class="columns">
+        <section class="panel" id="panel-scheduled" aria-labelledby="h-scheduled">
+          <div class="panel-head"><h2 id="h-scheduled">Scheduled</h2><span class="count scheduled" id="c-scheduled">0</span></div>
+          <ul class="list" id="list-scheduled"></ul>
+        </section>
+        <section class="panel" id="panel-pending" aria-labelledby="h-pending">
+          <div class="panel-head"><h2 id="h-pending">Pending</h2><span class="count pending" id="c-pending">0</span></div>
+          <ul class="list" id="list-pending"></ul>
+        </section>
+      </div>
+
+      <section class="panel finished-wrap" id="panel-finished" aria-labelledby="h-finished">
+        <div class="panel-head"><h2 id="h-finished">Finished</h2><span class="count finished" id="c-finished">0</span></div>
+        <ul class="list" id="list-finished"></ul>
+      </section>
+    </div>
+  </div>
+
+  <script>
+    const $ = (selector) => document.querySelector(selector);
+    const REFRESH_MS = 15000;
+    let board = null;
+    let filter = "all";
+    let query = "";
+    let timer = null;
+
+    function escapeHTML(value) {
+      return String(value ?? "").replace(/[&<>"']/g, (char) => (
+        { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[char]
+      ));
+    }
+    function initials(name) {
+      return name.split(/\s+/).filter(Boolean).slice(0, 2).map((part) => part[0].toUpperCase()).join("");
+    }
+    function formatTime(time) {
+      const hour = Number(time.slice(0, 2));
+      return `${hour > 12 ? hour - 12 : hour}:00 ${hour >= 12 ? "PM" : "AM"}`;
+    }
+    function formatDate(iso) {
+      const [year, month, day] = iso.split("-").map(Number);
+      return new Date(year, month - 1, day).toLocaleDateString("en-IN", { weekday: "short", day: "numeric", month: "short" });
+    }
+    function isoDate(date) {
+      const pad = (n) => String(n).padStart(2, "0");
+      return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
+    }
+    function nextWorkday() {
+      const date = new Date();
+      while (date.getDay() === 0 || date.getDay() === 6) date.setDate(date.getDate() + 1);
+      return isoDate(date);
+    }
+    function showBanner(kind, html) {
+      const banner = $("#banner");
+      banner.className = `banner ${kind}`;
+      banner.innerHTML = html;
+      banner.hidden = false;
+    }
+    function hideBanner() { $("#banner").hidden = true; }
+
+    function matches(item) {
+      if (!query) return true;
+      return [item.name, item.program, item.batch, item.stage, item.interviewer, item.panel, item.room]
+        .join(" ").toLowerCase().includes(query);
+    }
+
+    function scheduledRow(item) {
+      const people = [item.interviewer, ...(item.panel ? item.panel.split(", ") : [])].filter(Boolean);
+      return `<li class="row scheduled">
+        <span class="avatar" aria-hidden="true">${escapeHTML(initials(item.name))}</span>
+        <div>
+          <div class="name">${escapeHTML(item.name)} ${item.priority ? '<span class="star" title="Priority candidate">★</span>' : ""}</div>
+          <div class="meta">${escapeHTML(item.program)} · Batch ${escapeHTML(item.batch)}</div>
+          <div class="meta"><b>${escapeHTML(formatDate(item.interview_date))}, ${escapeHTML(formatTime(item.interview_time))}</b>
+            · ${escapeHTML(people.join(" + ") || "Interviewer TBC")} · ${escapeHTML(item.room || "Room TBC")}</div>
+        </div>
+        <div class="right"><span class="badge round">${escapeHTML(item.stage)}</span><span class="badge ok">Scheduled</span></div>
+      </li>`;
+    }
+    function pendingRow(item) {
+      const ready = item.has_availability;
+      return `<li class="row pending">
+        <span class="avatar" aria-hidden="true">${escapeHTML(initials(item.name))}</span>
+        <div>
+          <div class="name">${escapeHTML(item.name)} ${item.priority ? '<span class="star" title="Priority candidate">★</span>' : ""}</div>
+          <div class="meta">${escapeHTML(item.program)} · Batch ${escapeHTML(item.batch)}</div>
+          <div class="meta">${ready ? "Candidate has shared available hours." : "No hours shared yet, so any open hour can be used."}</div>
+        </div>
+        <div class="right"><span class="badge round">${escapeHTML(item.stage)}</span>
+          <span class="badge wait">${ready ? "Hours shared" : "No hours shared"}</span></div>
+      </li>`;
+    }
+    function finishedRow(item, passed) {
+      return `<li class="row finished">
+        <span class="avatar" aria-hidden="true">${escapeHTML(initials(item.name))}</span>
+        <div>
+          <div class="name">${escapeHTML(item.name)}</div>
+          <div class="meta">${escapeHTML(item.program)} · Batch ${escapeHTML(item.batch)}</div>
+          <div class="meta">${passed ? "Cleared every round." : `Stopped after ${escapeHTML(item.stage)}.`}</div>
+        </div>
+        <div class="right"><span class="badge ${passed ? "ok" : "fail"}">${passed ? "Passed" : "Not progressing"}</span></div>
+      </li>`;
+    }
+    function fillList(selector, items, renderer, emptyText) {
+      $(selector).innerHTML = items.length ? items.map(renderer).join("") : `<li class="empty">${escapeHTML(emptyText)}</li>`;
+    }
+
+    function render() {
+      if (!board) return;
+      const { counts } = board;
+      $("#n-scheduled").textContent = counts.scheduled;
+      $("#n-pending").textContent = counts.pending;
+      $("#n-passed").textContent = counts.passed;
+      $("#n-rejected").textContent = counts.rejected;
+      const active = counts.scheduled + counts.pending;
+      const percent = active ? Math.round((counts.scheduled / active) * 100) : 0;
+      $("#progress-label").textContent = `${counts.scheduled} of ${active} (${percent}%)`;
+      $("#bar-fill").style.width = `${percent}%`;
+      $("#bar").setAttribute("aria-valuenow", String(percent));
+
+      const scheduled = board.scheduled.filter(matches);
+      const pending = board.pending.filter(matches);
+      const finished = [
+        ...board.passed.filter(matches).map((item) => ({ item, passed: true })),
+        ...board.rejected.filter(matches).map((item) => ({ item, passed: false })),
+      ];
+      $("#c-scheduled").textContent = scheduled.length;
+      $("#c-pending").textContent = pending.length;
+      $("#c-finished").textContent = finished.length;
+      fillList("#list-scheduled", scheduled, scheduledRow, query ? "No scheduled student matches your search." : "No interviews are scheduled yet. Run the auto-planner.");
+      fillList("#list-pending", pending, pendingRow, query ? "No pending student matches your search." : "Everyone active has a slot. Nothing pending.");
+      $("#list-finished").innerHTML = finished.length
+        ? finished.map(({ item, passed }) => finishedRow(item, passed)).join("")
+        : `<li class="empty">${query ? "No finished student matches your search." : "No student has finished the pipeline yet."}</li>`;
+
+      $("#panel-scheduled").hidden = !(filter === "all" || filter === "scheduled");
+      $("#panel-pending").hidden = !(filter === "all" || filter === "pending");
+      $("#panel-finished").hidden = !(filter === "all" || filter === "finished");
+    }
+
+    async function load(keepBanner = false) {
+      try {
+        const response = await fetch("/api/status-board");
+        if (response.status === 401) {
+          $("#app").hidden = true;
+          return showBanner("error", 'Please <a href="./login.html">sign in as a coordinator</a> to see the status board.');
+        }
+        if (response.status === 403) {
+          $("#app").hidden = true;
+          return showBanner("error", 'This page is for coordinators only. <a href="./login.html">Back to your dashboard</a>.');
+        }
+        if (!response.ok) throw new Error("The server could not load the status board.");
+        board = await response.json();
+        $("#app").hidden = false;
+        if (!keepBanner) hideBanner();
+        $("#updated").textContent = `Updated ${new Date().toLocaleTimeString()} · auto-refreshes every ${REFRESH_MS / 1000}s`;
+        render();
+      } catch (error) {
+        showBanner("error", escapeHTML(error instanceof Error ? error.message : "Could not reach the scheduling server."));
+      }
+    }
+
+    async function runAutoPlan() {
+      const button = $("#plan-button");
+      const planDate = $("#plan-date").value;
+      if (!planDate) return showBanner("error", "Choose a date for the auto-planner.");
+      button.disabled = true;
+      button.textContent = "Planning…";
+      try {
+        const response = await fetch("/api/auto-plan", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ date: planDate }),
+        });
+        const result = await response.json();
+        if (!response.ok) throw new Error(result.error || "Auto-plan failed.");
+        showBanner(result.scheduled ? "ok" : "error",
+          `${escapeHTML(result.message)} ${result.unscheduled ? `${result.unscheduled} still pending.` : ""}`);
+        await load(true);
+        if (!result.scheduled) showBanner("error", `${escapeHTML(result.message)} Check the date: weekends have no open hours.`);
+      } catch (error) {
+        showBanner("error", escapeHTML(error instanceof Error ? error.message : "Auto-plan failed."));
+      } finally {
+        button.disabled = false;
+        button.textContent = "Run auto-plan for this date";
+      }
+    }
+
+    function startTimer() {
+      clearInterval(timer);
+      timer = setInterval(() => { if (!document.hidden) load(); }, REFRESH_MS);
+    }
+
+    $("#plan-date").value = nextWorkday();
+    $("#plan-button").addEventListener("click", runAutoPlan);
+    $("#refresh").addEventListener("click", () => load());
+    $("#search").addEventListener("input", (event) => { query = event.target.value.trim().toLowerCase(); render(); });
+    document.querySelectorAll(".chip").forEach((chip) => chip.addEventListener("click", () => {
+      filter = chip.dataset.filter;
+      document.querySelectorAll(".chip").forEach((item) => item.setAttribute("aria-pressed", String(item === chip)));
+      render();
+    }));
+    document.addEventListener("visibilitychange", () => { if (!document.hidden) load(); });
+    load();
+    startTimer();
+  </script>
+</body>
+</html>

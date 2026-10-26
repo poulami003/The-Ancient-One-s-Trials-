@@ -71,9 +71,14 @@ Passwords are stored as salted PBKDF2-HMAC-SHA256 hashes. Login creates an eight
 - `POST /api/interviews/{id}/cancel` — cancel and search for a replacement slot
 - `POST /api/interview-rounds/panel-size` — coordinator sets how many interviewers a round needs (`{"round_number": 1, "panel_size": 2}`; default 1)
 - `POST /api/interviewers/capacity` — coordinator sets an interviewer's maximum interviews per day (`{"interviewer_id": 1, "max_per_day": 4}`; default 6)
+- `GET /api/status-board` — coordinator view of every student as scheduled, pending, passed or rejected (powers `/status.html`)
 - `GET /api/rankings` and `GET /api/notifications` — evaluation comparison and in-app alerts
 
 For `/api/availability`, `weekday` uses Python's convention (Monday `0`, Sunday `6`), and `times` is a list such as `["09:00", "10:00"]`.
+
+## Status board
+
+Coordinators can open `/status.html` (also linked as **Status board** in the sidebar) to see who is scheduled and who is still pending, with counts, a progress bar, search, filters, a **Run auto-plan** button and a 15-second auto-refresh.
 
 ## Panels and capacity
 
