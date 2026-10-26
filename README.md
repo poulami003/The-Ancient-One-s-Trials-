@@ -69,9 +69,15 @@ Passwords are stored as salted PBKDF2-HMAC-SHA256 hashes. Login creates an eight
 - `POST /api/availability` — update an interviewer's or room's weekday availability
 - `POST /api/interviews/{id}/evaluate` — record a rubric score, feedback, and decision
 - `POST /api/interviews/{id}/cancel` — cancel and search for a replacement slot
+- `POST /api/interview-rounds/panel-size` — coordinator sets how many interviewers a round needs (`{"round_number": 1, "panel_size": 2}`; default 1)
+- `POST /api/interviewers/capacity` — coordinator sets an interviewer's maximum interviews per day (`{"interviewer_id": 1, "max_per_day": 4}`; default 6)
 - `GET /api/rankings` and `GET /api/notifications` — evaluation comparison and in-app alerts
 
 For `/api/availability`, `weekday` uses Python's convention (Monday `0`, Sunday `6`), and `times` is a list such as `["09:00", "10:00"]`.
+
+## Panels and capacity
+
+A round can require a panel of several interviewers (`interview_rounds.panel_size`). The scheduler only offers slots where every panelist has the skill, is available and is not already booked (as lead or panelist) at that hour. Each interviewer also has a daily limit (`interviewers.max_per_day`); the auto-planner counts every panel seat against it. The lead interviewer is stored on `interviews`, the other panelists in `interview_panelists`.
 
 ## Verify
 
