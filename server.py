@@ -13,6 +13,8 @@ from http.cookies import SimpleCookie
 from pathlib import Path
 from urllib.parse import parse_qs, unquote, urlparse
 
+from scheduler import TIMES, candidate_is_available, find_assignments, solve
+
 
 ROOT = Path(__file__).resolve().parent
 DATABASE = ROOT / "trials.db"
@@ -27,7 +29,6 @@ if not SESSION_SECRET:
         _secret_file.write_text(SESSION_SECRET)
 SESSION_MAX_AGE = 60 * 60 * 8
 PASSWORD_ITERATIONS = 310_000
-TIMES = tuple(f"{hour:02d}:00" for hour in range(9, 17))
 ROUND_DEFINITIONS = (
     (1, "Coding", "Programming and problem-solving assessment"),
     (2, "Technical", "Technical knowledge and project discussion"),
@@ -398,97 +399,6 @@ def initialize_database():
                  candidate["interview_date"], candidate["interview_time"],
                  candidate["interviewer_id"], candidate["room_id"]),
             )
-
-
-def candidate_is_available(connection, candidate_id, interview_date, interview_time):
-    rows = connection.execute(
-        "SELECT interview_time, available FROM candidate_availability "
-        "WHERE candidate_id = ? AND interview_date = ?",
-        (candidate_id, interview_date),
-    ).fetchall()
-    return not rows or any(row["interview_time"] == interview_time and row["available"] for row in rows)
-
-
-def find_assignments(
-    connection,
-    candidate,
-    interview_date,
-    preferred_time=None,
-    reserved=None,
-    ignore_candidate_id=None,
-    require_candidate_availability=False,
-):
-    day = date.fromisoformat(interview_date)
-    reserved = reserved or set()
-    times = (preferred_time,) if preferred_time else TIMES
-    skills = {candidate["stage"], candidate["stage"].replace(" screen", "")}
-    interviewers = connection.execute("SELECT id, name, skills FROM interviewers ORDER BY name").fetchall()
-    rooms = connection.execute("SELECT id, name FROM rooms ORDER BY name").fetchall()
-    assignments = []
-    for interview_time in times:
-        if interview_time not in TIMES:
-            continue
-        if require_candidate_availability:
-            rows = connection.execute(
-                "SELECT interview_time, available FROM candidate_availability "
-                "WHERE candidate_id = ? AND interview_date = ?",
-                (candidate["id"], interview_date),
-            ).fetchall()
-            candidate_available = any(
-                row["interview_time"] == interview_time and row["available"] for row in rows
-            )
-        else:
-            candidate_available = candidate_is_available(
-                connection, candidate["id"], interview_date, interview_time
-            )
-        if not candidate_available:
-            continue
-        for interviewer in interviewers:
-            interviewer_skills = set(json.loads(interviewer["skills"]))
-            if not skills.intersection(interviewer_skills):
-                continue
-            interviewer_key = ("interviewer", interviewer["id"], interview_time)
-            if interviewer_key in reserved:
-                continue
-            interviewer_available = connection.execute(
-                """SELECT available FROM resource_availability
-                   WHERE resource_type = 'interviewer' AND resource_id = ?
-                     AND weekday = ? AND interview_time = ?""",
-                (interviewer["id"], day.weekday(), interview_time),
-            ).fetchone()
-            if not interviewer_available or not interviewer_available["available"]:
-                continue
-            for room in rooms:
-                room_key = ("room", room["id"], interview_time)
-                if room_key in reserved:
-                    continue
-                room_available = connection.execute(
-                    """SELECT available FROM resource_availability
-                       WHERE resource_type = 'room' AND resource_id = ?
-                         AND weekday = ? AND interview_time = ?""",
-                    (room["id"], day.weekday(), interview_time),
-                ).fetchone()
-                if not room_available or not room_available["available"]:
-                    continue
-                conflict = connection.execute(
-                    """SELECT 1 FROM candidates WHERE status = 'scheduled'
-                       AND interview_date = ? AND interview_time = ?
-                       AND id != COALESCE(?, -1)
-                       AND (interviewer_id = ? OR room_id = ? OR id = ?)
-                       LIMIT 1""",
-                    (interview_date, interview_time, ignore_candidate_id,
-                     interviewer["id"], room["id"], candidate["id"]),
-                ).fetchone()
-                if conflict:
-                    continue
-                assignments.append({
-                    "time": interview_time,
-                    "interviewer_id": interviewer["id"],
-                    "interviewer": interviewer["name"],
-                    "room_id": room["id"],
-                    "room": room["name"],
-                })
-    return assignments
 
 
 def schedule_candidate(
@@ -1041,37 +951,11 @@ class TrialsHandler(SimpleHTTPRequestHandler):
                     candidates = connection.execute(
                         f"SELECT {FIELDS} FROM candidates WHERE status = 'waiting' AND outcome = 'active' ORDER BY priority DESC, id"
                     ).fetchall()
-                    reserved = set()
                     option_map = {
                         candidate["id"]: find_assignments(connection, candidate, target_date)
                         for candidate in candidates
                     }
-                    ordered_ids = sorted(option_map, key=lambda candidate_id: len(option_map[candidate_id]))
-                    assignments = {}
-                    nodes = 0
-
-                    def search(index):
-                        nonlocal nodes
-                        nodes += 1
-                        if index == len(ordered_ids) or nodes > 5000:
-                            return
-                        candidate_id = ordered_ids[index]
-                        for option in option_map[candidate_id]:
-                            interviewer_key = ("interviewer", option["interviewer_id"], option["time"])
-                            room_key = ("room", option["room_id"], option["time"])
-                            if interviewer_key in reserved or room_key in reserved:
-                                continue
-                            reserved.update((interviewer_key, room_key))
-                            assignments[candidate_id] = option
-                            search(index + 1)
-                            if len(assignments) == len(ordered_ids):
-                                return
-                            assignments.pop(candidate_id, None)
-                            reserved.remove(interviewer_key)
-                            reserved.remove(room_key)
-                        search(index + 1)
-
-                    search(0)
+                    assignments, _nodes = solve(option_map)
                     for candidate_id, option in assignments.items():
                         schedule_candidate(
                             connection,
