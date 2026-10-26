@@ -150,6 +150,10 @@
     .auth-card > p { margin: 8px 0 20px; color: var(--muted); font-size: 12px; }
     .auth-form { display: grid; gap: 12px; }
     .auth-form input { width: 100%; height: 39px; padding: 0 10px; border: 1px solid var(--line); background: #fffdf8; color: var(--ink); font: inherit; }
+    .auth-form .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+    .auth-form select { width: 100%; height: 39px; padding: 0 8px; border: 1px solid var(--line); background: #fffdf9; font: inherit; }
+    .auth-form [hidden] { display: none !important; }
+    .auth-toggle { border: 0; background: none; color: var(--red); font: inherit; font-size: 12px; cursor: pointer; text-decoration: underline; padding: 4px; }
     .auth-error { min-height: 18px; color: var(--red); font-size: 11px; }
     .demo-accounts { margin-top: 19px; padding-top: 13px; border-top: 1px solid var(--line); color: var(--muted); font-size: 10px; }
     .demo-accounts strong { display: block; margin-bottom: 4px; color: var(--ink); }
@@ -231,14 +235,20 @@
     <div class="auth-card">
       <div class="brand-name">TrialSync</div>
       <h1 id="login-title">Welcome back</h1>
-      <p>Sign in to open your coordinator, interviewer, or candidate workspace.</p>
+      <p id="auth-intro">Sign in to open your coordinator, interviewer, or candidate workspace.</p>
       <form class="auth-form" id="login-form">
+        <label class="field register-only" hidden>Full name<input name="name" type="text" autocomplete="name" minlength="2" maxlength="80"></label>
+        <div class="form-row register-only" hidden>
+          <label class="field">Degree program<select name="program"><option value="">Select</option><option>MCA</option><option>B.Tech</option><option>M.Tech</option><option>M.Sc</option></select></label>
+          <label class="field">Graduating batch<select name="batch"><option value="">Select</option><option value="2026">Class of 2026</option><option value="2027">Class of 2027</option><option value="2028">Class of 2028</option><option value="2029">Class of 2029</option><option value="2030">Class of 2030</option></select></label>
+        </div>
         <label class="field">Email address<input name="email" type="email" autocomplete="username" required value="coordinator@trialsync.local"></label>
         <label class="field">Password<input name="password" type="password" autocomplete="current-password" required></label>
         <div class="auth-error" id="login-error" role="alert" aria-live="polite"></div>
-        <button class="button button-primary" type="submit">Sign in</button>
+        <button class="button button-primary" type="submit" id="auth-submit">Sign in</button>
+        <button class="auth-toggle" type="button" id="auth-toggle">New candidate? Create an account</button>
       </form>
-      <div class="demo-accounts"><strong>Local demo accounts</strong>
+      <div class="demo-accounts" id="demo-accounts"><strong>Local demo accounts</strong>
         Coordinator: <code>coordinator@trialsync.local</code> / <code>Coordinator123!</code><br>
         Interviewer: <code>interviewer@trialsync.local</code> / <code>Interviewer123!</code><br>
         Candidate: <code>candidate@trialsync.local</code> / <code>Candidate123!</code>
@@ -674,20 +684,44 @@
         showToast(error instanceof Error ? error.message : "Could not add this student.");
       }
     });
+    let authMode = "login";
+    function setAuthMode(mode) {
+      authMode = mode;
+      const register = mode === "register";
+      document.querySelectorAll("#login-form .register-only").forEach((el) => { el.hidden = !register; });
+      ["name", "program", "batch"].forEach((field) => { $(`#login-form [name=${field}]`).required = register; });
+      $("#login-form [name=password]").autocomplete = register ? "new-password" : "current-password";
+      $("#login-form [name=password]").minLength = register ? 8 : 0;
+      $("#login-title").textContent = register ? "Create your candidate account" : "Welcome back";
+      $("#auth-intro").textContent = register
+        ? "Register to book interviews and follow your recruitment rounds."
+        : "Sign in to open your coordinator, interviewer, or candidate workspace.";
+      $("#auth-submit").textContent = register ? "Create account" : "Sign in";
+      $("#auth-toggle").textContent = register ? "Already have an account? Sign in" : "New candidate? Create an account";
+      $("#demo-accounts").hidden = register;
+      $("#login-error").textContent = "";
+      if (register) $("#login-form [name=email]").value = "";
+    }
+    $("#auth-toggle").addEventListener("click", () => setAuthMode(authMode === "login" ? "register" : "login"));
     $("#login-form").addEventListener("submit", async (event) => {
       event.preventDefault();
-      const form = new FormData(event.currentTarget);
-      const submitButton = event.currentTarget.querySelector("button[type=submit]");
+      const formElement = event.currentTarget;
+      const form = new FormData(formElement);
+      const submitButton = formElement.querySelector("button[type=submit]");
       submitButton.disabled = true;
       $("#login-error").textContent = "";
       try {
-        const response = await fetch("/api/auth/login", {
+        const registering = authMode === "register";
+        const payload = { email: form.get("email"), password: form.get("password") };
+        if (registering) Object.assign(payload, { name: form.get("name"), program: form.get("program"), batch: form.get("batch") });
+        const response = await fetch(registering ? "/api/auth/register" : "/api/auth/login", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ email: form.get("email"), password: form.get("password") })
+          body: JSON.stringify(payload)
         });
         const result = await response.json();
-        if (!response.ok) throw new Error(result.error || "Could not sign in.");
+        if (!response.ok) throw new Error(result.error || (registering ? "Could not create the account." : "Could not sign in."));
+        if (registering) { formElement.reset(); setAuthMode("login"); }
         currentUser = result.user;
         setRole(currentUser.role);
         await loadData();

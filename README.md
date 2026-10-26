@@ -1,56 +1,93 @@
-# The-Ancient-One-s-Trials-
-# TrialSync – Interview Scheduling Platform
+# TrialSync — Constraint-Satisfaction Recruitment Scheduler
 
-## About the Project
+TrialSync is a local campus-recruitment scheduling prototype. It coordinates interview rounds for candidates while checking interviewer skills and availability, candidate availability, and room availability.
 
-TrialSync is a smart interview scheduling platform designed to simplify and streamline the recruitment process. It helps coordinators manage candidates, interviewers, interview rooms, and schedules in one place.
+## Run locally
 
-The platform aims to reduce scheduling conflicts, save time, and make the interview process more organized through constraint-based scheduling and automated coordination.
+1. Open this folder in VS Code.
+2. In the integrated terminal, run:
 
-## Features
+   ```powershell
+   python server.py
+   ```
 
-- **Smart Interview Scheduling:** Automatically generate interview schedules while considering availability and constraints.
-- **Candidate Management:** Manage candidate details and track their progress through different recruitment stages.
-- **Interviewer Management:** Organize interviewer availability and assignments.
-- **Conflict Detection:** Identify scheduling conflicts and prevent overlapping interviews.
-- **Multi-Stage Interview Pipeline:** Manage Coding, Technical, and HR interview rounds.
-- **Calendar Integration:** Export interview schedules and support calendar-based planning.
-- **Automated Rescheduling:** Help rearrange interviews when an interviewer becomes unavailable.
-- **Notifications:** Keep candidates and interviewers informed about schedules and changes.
-- **Evaluation and Feedback:** Record interview feedback and evaluation results.
-- **Role-Based Portals:** Provide separate interfaces for candidates, interviewers, and coordinators.
+3. Open <http://127.0.0.1:8000/login.html> in a browser (or <http://127.0.0.1:8000/>).
+4. To stop the server, focus the terminal and press `Ctrl+C`.
 
-## Tech Stack
+The Python standard library and SQLite are used; no package installation is required. Data is stored in `trials.db`. The server creates its tables and sample data on its first run and preserves existing candidate records when adding the scheduler tables.
 
-- **Frontend:** React.js, HTML, CSS, JavaScript
-- **Backend:** Node.js, Express.js
-- **Database:** MongoDB
-- **Scheduling Algorithm:** Constraint Satisfaction Problem (CSP), Backtracking, and Minimum Remaining Values (MRV) heuristic
-- **Calendar Support:** iCalendar (`.ics`) export, with external calendar integration planned
-- **Version Control:** Git and GitHub
+Open the sign-in page directly at `/login.html`; the root URL `/` opens that same page. The public landing page remains available at `/home.html`.
 
-## Team Members
+## Database structure
 
-- **Poulami Maji
-- **Ashwini Deshmukh
-- **Muskaan Kushwaha
+The idempotent `initialize_database()` migration creates and seeds these core tables:
 
-## Project Goals
+- `candidates` — candidate identity, program, batch, current pipeline round, status, and booking details.
+- `interviewers` — interviewer identities and their round-skill lists.
+- `rooms` — available interview room records.
+- `interview_rounds` — the ordered active pipeline catalog (Coding → Technical → HR).
+- `interviews` — a candidate's scheduled instance of a round; references the candidate, pipeline round, interviewer, and room.
 
-- Reduce manual effort in interview scheduling.
-- Minimize conflicts between candidates, interviewers, and rooms.
-- Improve coordination throughout the recruitment process.
-- Provide a clean, professional, and user-friendly interface.
-- Make interview scheduling more efficient and reliable.
+The related `candidate_availability`, `resource_availability`, and `evaluations` tables store booking constraints and round results. Existing candidate-only SQLite files are upgraded in place; existing candidates and scheduled interviews are retained. Database foreign keys and migration-safe triggers reject scheduled rounds or resources that do not exist.
 
-## Future Enhancements
+## Included workflows
 
-- Integration with Google Calendar and Microsoft Outlook.
-- Real-time notifications and automated email reminders.
-- Persistent data storage and secure authentication.
-- Advanced scheduling optimization for complex recruitment workflows.
-- Detailed recruitment analytics and reporting.
+- **Coordinator:** add candidates, inspect the day schedule, assign a conflict-free slot, run the constraint-based auto-planner, create candidate booking links, export an iCalendar (`.ics`) file, and cancel an interview to trigger automatic replacement-slot search.
+- **Candidate:** sign in to their own recruitment dashboard, view their round history and status, set available hours for a date, see only compatible open slots, and book their next interviewer and room. Coordinator-issued booking links are also supported.
+- **Interviewer:** sign in to their own interview desk, view only their assigned interviews, enter a 1–5 score and feedback, and pass or fail candidates in their rounds. A pass advances the candidate through Coding → Technical → HR. Failing a round marks the candidate as rejected; passing HR completes the pipeline.
+- **Role-based login:** the sign-in identity is stored in a salted PBKDF2 password hash, with an eight-hour signed, HttpOnly, SameSite session cookie. Protected endpoints enforce the signed-in role; candidates and interviewers only see their own records.
+- **Evaluation comparison:** view candidates ordered by their average evaluation score.
+- **Availability management API:** set interviewer or room availability by weekday, in one-hour slots from 09:00 through 16:00.
+- **Notifications:** scheduling, progression, completion, and rescheduling events are available in the in-app notification feed.
 
----
+The sample interviewer and room calendars are initially open Monday through Friday. Auto-planning orders candidates by priority and the number of compatible options, then searches for assignments without overlapping an interviewer or room.
 
-**TrialSync** – Making interview scheduling simpler, smarter, and more efficient.
+## Demo sign-in accounts
+
+The local database provisions three accounts on first run:
+
+| Role | Email | Password |
+|---|---|---|
+| Coordinator | `coordinator@trialsync.local` | `Coordinator123!` |
+| Interviewer | `interviewer@trialsync.local` | `Interviewer123!` |
+| Candidate | `candidate@trialsync.local` | `Candidate123!` |
+
+Passwords are stored as salted PBKDF2-HMAC-SHA256 hashes. Login creates an eight-hour, signed, HttpOnly, SameSite session cookie, and the API checks the role and resource ownership on protected endpoints. The sample credentials are public demo credentials, not suitable for deployment.
+
+## API overview
+
+- `GET /api/candidates?date=YYYY-MM-DD` — day schedule and active queue
+- `GET /api/resources` — interviewer skills, rooms, and pipeline stages
+- `GET /api/interviewers`, `GET /api/rooms`, `GET /api/interview-rounds` — persisted scheduling resources and round catalog
+- `POST /api/auto-plan` — schedule as many waiting candidates as the constraints allow
+- `POST /api/candidates` — add a candidate
+- `PATCH /api/candidates/{id}` — assign a candidate to a date and optional time
+- `POST /api/candidates/{id}/booking-link` — create a candidate booking link
+- `GET /api/booking/{token}?date=YYYY-MM-DD` — list available booking slots
+- `POST /api/booking/{token}/availability` — save candidate availability
+- `POST /api/booking/{token}` — confirm a candidate booking
+- `POST /api/availability` — update an interviewer's or room's weekday availability
+- `POST /api/interviews/{id}/evaluate` — record a rubric score, feedback, and decision
+- `POST /api/interviews/{id}/cancel` — cancel and search for a replacement slot
+- `GET /api/rankings` and `GET /api/notifications` — evaluation comparison and in-app alerts
+
+For `/api/availability`, `weekday` uses Python's convention (Monday `0`, Sunday `6`), and `times` is a list such as `["09:00", "10:00"]`.
+
+## Verify
+
+Run the focused backend integration tests from the project folder:
+
+```powershell
+python -m unittest discover -s tests -v
+```
+
+## Scope and limitations
+
+This is a local demonstration, not a production deployment. The seeded demo accounts are publicly documented; there is no self-service registration, password reset, or production account administration. If `TRIALSYNC_SESSION_SECRET` is not set, the server generates a temporary signing key, so sessions expire on restart. Set a stable key before starting the server if you need sessions to survive a restart:
+
+```powershell
+$env:TRIALSYNC_SESSION_SECRET = "replace-with-a-long-random-secret"
+python server.py
+```
+
+The seeded recurring availability is weekday-based; email delivery and external Google Calendar synchronization are not configured. Candidate booking uses an unguessable local-demo token, and the calendar feature downloads `.ics` files. Use HTTPS, rotate the demo credentials, and configure a strong signing key before any non-local deployment.
