@@ -263,6 +263,7 @@
         <button class="active" data-nav="Overview" data-roles="coordinator"><span class="nav-icon">⌂</span>Overview</button>
         <button data-nav="Schedule" data-roles="coordinator"><span class="nav-icon">▦</span>Schedule<span class="nav-count">12</span></button>
         <button data-nav="Candidates" data-roles="coordinator"><span class="nav-icon">♙</span>Candidates<span class="nav-count" id="nav-count">6</span></button>
+        <button data-nav="Status" data-roles="coordinator"><span class="nav-icon">◫</span>Status board</button>
         <button data-nav="Interviewers" data-roles="interviewer"><span class="nav-icon">♧</span>My interviews</button>
         <button data-nav="Candidate" data-roles="candidate"><span class="nav-icon">♙</span>My recruitment</button>
       </nav>
@@ -857,6 +858,7 @@
       }
     });
     document.querySelectorAll("[data-nav]").forEach((button) => button.addEventListener("click", () => {
+      if (button.dataset.nav === "Status") { window.location.href = "./status.html"; return; }
       document.querySelectorAll("[data-nav]").forEach((item) => item.classList.toggle("active", item === button));
       const target = button.dataset.nav === "Candidates" ? "candidate-panel"
         : button.dataset.nav === "Interviewers" ? "evaluation-panel"

@@ -1,0 +1,5 @@
+__pycache__/
+*.pyc
+.session_secret
+trials.db
+.vscode/

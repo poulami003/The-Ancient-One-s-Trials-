@@ -17,7 +17,9 @@ class QuietTrialsHandler(server.TrialsHandler):
         return
 
 
-class SchedulerApiTests(unittest.TestCase):
+class ApiTestCase(unittest.TestCase):
+    """Shared setup: temp database, live HTTP server, coordinator login, request helpers."""
+
     def setUp(self):
         self.temporary_directory = tempfile.TemporaryDirectory()
         self.original_database = server.DATABASE
@@ -81,6 +83,8 @@ class SchedulerApiTests(unittest.TestCase):
         self.assertEqual(status, 201)
         return candidate
 
+
+class SchedulerApiTests(ApiTestCase):
     def test_auto_plan_respects_interviewer_and_room_conflicts(self):
         with server.connect_database() as connection:
             interviewers = connection.execute("SELECT id FROM interviewers").fetchall()

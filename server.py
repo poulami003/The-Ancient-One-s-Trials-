@@ -13,6 +13,11 @@ from http.cookies import SimpleCookie
 from pathlib import Path
 from urllib.parse import parse_qs, unquote, urlparse
 
+from scheduler import (
+    DEFAULT_MAX_PER_DAY, TIMES, candidate_is_available, find_assignments,
+    remaining_capacity, solve,
+)
+
 
 ROOT = Path(__file__).resolve().parent
 DATABASE = ROOT / "trials.db"
@@ -27,7 +32,6 @@ if not SESSION_SECRET:
         _secret_file.write_text(SESSION_SECRET)
 SESSION_MAX_AGE = 60 * 60 * 8
 PASSWORD_ITERATIONS = 310_000
-TIMES = tuple(f"{hour:02d}:00" for hour in range(9, 17))
 ROUND_DEFINITIONS = (
     (1, "Coding", "Programming and problem-solving assessment"),
     (2, "Technical", "Technical knowledge and project discussion"),
@@ -124,7 +128,7 @@ def connect_database():
 
 
 def get_rounds(connection, active_only=False):
-    query = "SELECT round_number, name, description, active FROM interview_rounds"
+    query = "SELECT round_number, name, description, active, panel_size FROM interview_rounds"
     if active_only:
         query += " WHERE active = 1"
     query += " ORDER BY round_number"
@@ -296,6 +300,24 @@ def initialize_database():
                (round_number, name, description, active) VALUES (?, ?, ?, 1)""",
             ROUND_DEFINITIONS,
         )
+        # Panel interviews and per-interviewer daily capacity (idempotent migrations).
+        round_columns = {row["name"] for row in connection.execute("PRAGMA table_info(interview_rounds)")}
+        if "panel_size" not in round_columns:
+            connection.execute(
+                "ALTER TABLE interview_rounds ADD COLUMN panel_size INTEGER NOT NULL DEFAULT 1"
+            )
+        interviewer_columns = {row["name"] for row in connection.execute("PRAGMA table_info(interviewers)")}
+        if "max_per_day" not in interviewer_columns:
+            connection.execute(
+                f"ALTER TABLE interviewers ADD COLUMN max_per_day INTEGER NOT NULL DEFAULT {DEFAULT_MAX_PER_DAY}"
+            )
+        connection.execute(
+            """CREATE TABLE IF NOT EXISTS interview_panelists (
+                   interview_id INTEGER NOT NULL REFERENCES interviews(id) ON DELETE CASCADE,
+                   interviewer_id INTEGER NOT NULL REFERENCES interviewers(id),
+                   PRIMARY KEY (interview_id, interviewer_id)
+               )"""
+        )
         connection.execute("UPDATE candidates SET program = role WHERE program = ''")
         connection.execute(
             "UPDATE candidates SET batch = ? WHERE name = ? AND batch = ''",
@@ -400,95 +422,31 @@ def initialize_database():
             )
 
 
-def candidate_is_available(connection, candidate_id, interview_date, interview_time):
-    rows = connection.execute(
-        "SELECT interview_time, available FROM candidate_availability "
-        "WHERE candidate_id = ? AND interview_date = ?",
-        (candidate_id, interview_date),
-    ).fetchall()
-    return not rows or any(row["interview_time"] == interview_time and row["available"] for row in rows)
+def save_panel(connection, candidate_id, round_number, panel_ids):
+    """Store the non-lead panelists for a candidate's round (lead lives on interviews)."""
+    interview = connection.execute(
+        "SELECT id, interviewer_id FROM interviews WHERE candidate_id = ? AND round_number = ?",
+        (candidate_id, round_number),
+    ).fetchone()
+    if not interview:
+        return
+    connection.execute("DELETE FROM interview_panelists WHERE interview_id = ?", (interview["id"],))
+    connection.executemany(
+        "INSERT OR IGNORE INTO interview_panelists (interview_id, interviewer_id) VALUES (?, ?)",
+        ((interview["id"], member) for member in panel_ids if member != interview["interviewer_id"]),
+    )
 
 
-def find_assignments(
-    connection,
-    candidate,
-    interview_date,
-    preferred_time=None,
-    reserved=None,
-    ignore_candidate_id=None,
-    require_candidate_availability=False,
-):
-    day = date.fromisoformat(interview_date)
-    reserved = reserved or set()
-    times = (preferred_time,) if preferred_time else TIMES
-    skills = {candidate["stage"], candidate["stage"].replace(" screen", "")}
-    interviewers = connection.execute("SELECT id, name, skills FROM interviewers ORDER BY name").fetchall()
-    rooms = connection.execute("SELECT id, name FROM rooms ORDER BY name").fetchall()
-    assignments = []
-    for interview_time in times:
-        if interview_time not in TIMES:
-            continue
-        if require_candidate_availability:
-            rows = connection.execute(
-                "SELECT interview_time, available FROM candidate_availability "
-                "WHERE candidate_id = ? AND interview_date = ?",
-                (candidate["id"], interview_date),
-            ).fetchall()
-            candidate_available = any(
-                row["interview_time"] == interview_time and row["available"] for row in rows
-            )
-        else:
-            candidate_available = candidate_is_available(
-                connection, candidate["id"], interview_date, interview_time
-            )
-        if not candidate_available:
-            continue
-        for interviewer in interviewers:
-            interviewer_skills = set(json.loads(interviewer["skills"]))
-            if not skills.intersection(interviewer_skills):
-                continue
-            interviewer_key = ("interviewer", interviewer["id"], interview_time)
-            if interviewer_key in reserved:
-                continue
-            interviewer_available = connection.execute(
-                """SELECT available FROM resource_availability
-                   WHERE resource_type = 'interviewer' AND resource_id = ?
-                     AND weekday = ? AND interview_time = ?""",
-                (interviewer["id"], day.weekday(), interview_time),
-            ).fetchone()
-            if not interviewer_available or not interviewer_available["available"]:
-                continue
-            for room in rooms:
-                room_key = ("room", room["id"], interview_time)
-                if room_key in reserved:
-                    continue
-                room_available = connection.execute(
-                    """SELECT available FROM resource_availability
-                       WHERE resource_type = 'room' AND resource_id = ?
-                         AND weekday = ? AND interview_time = ?""",
-                    (room["id"], day.weekday(), interview_time),
-                ).fetchone()
-                if not room_available or not room_available["available"]:
-                    continue
-                conflict = connection.execute(
-                    """SELECT 1 FROM candidates WHERE status = 'scheduled'
-                       AND interview_date = ? AND interview_time = ?
-                       AND id != COALESCE(?, -1)
-                       AND (interviewer_id = ? OR room_id = ? OR id = ?)
-                       LIMIT 1""",
-                    (interview_date, interview_time, ignore_candidate_id,
-                     interviewer["id"], room["id"], candidate["id"]),
-                ).fetchone()
-                if conflict:
-                    continue
-                assignments.append({
-                    "time": interview_time,
-                    "interviewer_id": interviewer["id"],
-                    "interviewer": interviewer["name"],
-                    "room_id": room["id"],
-                    "room": room["name"],
-                })
-    return assignments
+def user_is_on_interview(connection, interview_id, display_name):
+    """True if the named interviewer is the lead or a panelist on the interview."""
+    return connection.execute(
+        """SELECT 1 FROM interviews i
+           LEFT JOIN interviewers lead ON lead.id = i.interviewer_id
+           WHERE i.id = ? AND (lead.name = ? OR EXISTS (
+                 SELECT 1 FROM interview_panelists p JOIN interviewers pv ON pv.id = p.interviewer_id
+                 WHERE p.interview_id = i.id AND pv.name = ?))""",
+        (interview_id, display_name, display_name),
+    ).fetchone() is not None
 
 
 def schedule_candidate(
@@ -498,6 +456,7 @@ def schedule_candidate(
     preferred_time=None,
     requested_interviewer=None,
     requested_room_id=None,
+    requested_panel_ids=None,
 ):
     date.fromisoformat(interview_date)
     candidate = connection.execute(
@@ -509,7 +468,10 @@ def schedule_candidate(
         raise ValueError("Candidate is not waiting for an interview.")
     options = find_assignments(connection, candidate, interview_date, preferred_time)
     if requested_interviewer:
-        options = [option for option in options if option["interviewer"] == requested_interviewer]
+        options = [option for option in options if requested_interviewer in option["panel_names"]]
+    if requested_panel_ids:
+        wanted = set(requested_panel_ids)
+        options = [option for option in options if set(option["panel_ids"]) == wanted]
     if requested_room_id is not None:
         options = [option for option in options if option["room_id"] == requested_room_id]
     if not options:
@@ -534,9 +496,11 @@ def schedule_candidate(
         (candidate_id, candidate["current_round"], candidate["stage"], interview_date,
          assignment["time"], assignment["interviewer_id"], assignment["room_id"]),
     )
+    save_panel(connection, candidate_id, candidate["current_round"], assignment["panel_ids"])
+    panel_text = ", ".join(assignment["panel_names"])
     connection.execute(
         "INSERT INTO notifications (candidate_id, message) VALUES (?, ?)",
-        (candidate_id, f"{candidate['stage']} interview scheduled for {interview_date} at {assignment['time']} with {assignment['interviewer']}."),
+        (candidate_id, f"{candidate['stage']} interview scheduled for {interview_date} at {assignment['time']} with {panel_text}."),
     )
     return assignment
 
@@ -663,6 +627,9 @@ class TrialsHandler(SimpleHTTPRequestHandler):
                     rounds = connection.execute(
                         """SELECT i.round_number, i.stage, i.interview_date, i.interview_time,
                                   i.status, iv.name AS interviewer, r.name AS room,
+                                  (SELECT group_concat(pv.name, ', ') FROM interview_panelists p
+                                   JOIN interviewers pv ON pv.id = p.interviewer_id
+                                   WHERE p.interview_id = i.id) AS panel,
                                   e.score, e.decision
                            FROM interviews i
                            LEFT JOIN interviewers iv ON iv.id = i.interviewer_id
@@ -688,8 +655,12 @@ class TrialsHandler(SimpleHTTPRequestHandler):
                             LEFT JOIN rooms r ON r.id = c.room_id
                             LEFT JOIN evaluations e ON e.interview_id = i.id
                             WHERE c.status = 'scheduled' AND c.interview_date = ?
-                              AND c.interviewer = ? ORDER BY c.interview_time""",
-                        (today, user["display_name"]),
+                              AND (c.interviewer = ? OR EXISTS (
+                                   SELECT 1 FROM interview_panelists p
+                                   JOIN interviewers pv ON pv.id = p.interviewer_id
+                                   WHERE p.interview_id = i.id AND pv.name = ?))
+                            ORDER BY c.interview_time""",
+                        (today, user["display_name"], user["display_name"]),
                     ).fetchall()
                     return self.send_json(200, {
                         "user": {"role": user["role"], "display_name": user["display_name"]},
@@ -776,10 +747,13 @@ class TrialsHandler(SimpleHTTPRequestHandler):
                 return
             with connect_database() as connection:
                 rows = connection.execute(
-                    """SELECT i.id, i.name, i.skills,
+                    """SELECT i.id, i.name, i.skills, i.max_per_day,
                               COUNT(DISTINCT x.id) AS scheduled_interviews
                        FROM interviewers i LEFT JOIN interviews x
-                         ON x.interviewer_id = i.id AND x.status = 'scheduled'
+                         ON x.status = 'scheduled'
+                        AND (x.interviewer_id = i.id OR EXISTS (
+                             SELECT 1 FROM interview_panelists p
+                             WHERE p.interview_id = x.id AND p.interviewer_id = i.id))
                        GROUP BY i.id ORDER BY i.name"""
                 ).fetchall()
             return self.send_json(200, {
@@ -805,7 +779,7 @@ class TrialsHandler(SimpleHTTPRequestHandler):
                 return
             with connect_database() as connection:
                 rounds = connection.execute(
-                    """SELECT r.round_number, r.name, r.description, r.active,
+                    """SELECT r.round_number, r.name, r.description, r.active, r.panel_size,
                               COUNT(DISTINCT i.id) AS scheduled_interviews,
                               COUNT(DISTINCT c.id) AS active_candidates
                        FROM interview_rounds r
@@ -832,6 +806,42 @@ class TrialsHandler(SimpleHTTPRequestHandler):
                         "SELECT id, candidate_id, message, created_at, read FROM notifications ORDER BY id DESC LIMIT 30"
                     ).fetchall()
             return self.send_json(200, {"notifications": [dict(row) for row in notifications]})
+        if path == "/api/status-board":
+            if self.require_roles("coordinator") is None:
+                return
+            with connect_database() as connection:
+                rows = connection.execute(
+                    """SELECT c.id, c.name, c.program, c.batch, c.stage, c.current_round,
+                              c.priority, c.status, c.outcome, c.interview_date, c.interview_time,
+                              c.interviewer, r.name AS room,
+                              (SELECT group_concat(pv.name, ', ')
+                                 FROM interviews i
+                                 JOIN interview_panelists p ON p.interview_id = i.id
+                                 JOIN interviewers pv ON pv.id = p.interviewer_id
+                                WHERE i.candidate_id = c.id AND i.round_number = c.current_round
+                                  AND i.status = 'scheduled') AS panel,
+                              EXISTS (SELECT 1 FROM candidate_availability a
+                                       WHERE a.candidate_id = c.id AND a.available = 1) AS has_availability
+                       FROM candidates c LEFT JOIN rooms r ON r.id = c.room_id
+                       ORDER BY c.interview_date, c.interview_time, c.priority DESC, c.name"""
+                ).fetchall()
+            board = {"scheduled": [], "pending": [], "passed": [], "rejected": []}
+            for row in rows:
+                item = dict(row)
+                item["has_availability"] = bool(item["has_availability"])
+                if item["outcome"] == "passed":
+                    board["passed"].append(item)
+                elif item["outcome"] == "rejected":
+                    board["rejected"].append(item)
+                elif item["status"] == "scheduled":
+                    board["scheduled"].append(item)
+                else:
+                    board["pending"].append(item)
+            board["pending"].sort(key=lambda item: (-item["priority"], item["name"]))
+            return self.send_json(200, {
+                "counts": {name: len(items) for name, items in board.items()},
+                **board,
+            })
         if path == "/api/rankings":
             if self.require_roles("coordinator", "interviewer") is None:
                 return
@@ -987,7 +997,8 @@ class TrialsHandler(SimpleHTTPRequestHandler):
             user = None
             if path.startswith("/api/booking/"):
                 pass
-            elif path in ("/api/candidates", "/api/auto-plan", "/api/availability"):
+            elif path in ("/api/candidates", "/api/auto-plan", "/api/availability",
+                          "/api/interviewers/capacity", "/api/interview-rounds/panel-size"):
                 user = self.require_roles("coordinator")
                 if user is None:
                     return
@@ -1041,37 +1052,13 @@ class TrialsHandler(SimpleHTTPRequestHandler):
                     candidates = connection.execute(
                         f"SELECT {FIELDS} FROM candidates WHERE status = 'waiting' AND outcome = 'active' ORDER BY priority DESC, id"
                     ).fetchall()
-                    reserved = set()
                     option_map = {
                         candidate["id"]: find_assignments(connection, candidate, target_date)
                         for candidate in candidates
                     }
-                    ordered_ids = sorted(option_map, key=lambda candidate_id: len(option_map[candidate_id]))
-                    assignments = {}
-                    nodes = 0
-
-                    def search(index):
-                        nonlocal nodes
-                        nodes += 1
-                        if index == len(ordered_ids) or nodes > 5000:
-                            return
-                        candidate_id = ordered_ids[index]
-                        for option in option_map[candidate_id]:
-                            interviewer_key = ("interviewer", option["interviewer_id"], option["time"])
-                            room_key = ("room", option["room_id"], option["time"])
-                            if interviewer_key in reserved or room_key in reserved:
-                                continue
-                            reserved.update((interviewer_key, room_key))
-                            assignments[candidate_id] = option
-                            search(index + 1)
-                            if len(assignments) == len(ordered_ids):
-                                return
-                            assignments.pop(candidate_id, None)
-                            reserved.remove(interviewer_key)
-                            reserved.remove(room_key)
-                        search(index + 1)
-
-                    search(0)
+                    assignments, _nodes = solve(
+                        option_map, capacity=remaining_capacity(connection, target_date)
+                    )
                     for candidate_id, option in assignments.items():
                         schedule_candidate(
                             connection,
@@ -1080,12 +1067,40 @@ class TrialsHandler(SimpleHTTPRequestHandler):
                             option["time"],
                             option["interviewer"],
                             option["room_id"],
+                            option["panel_ids"],
                         )
                     return self.send_json(200, {
                         "scheduled": len(assignments),
                         "unscheduled": len(candidates) - len(assignments),
                         "message": f"Scheduled {len(assignments)} candidate(s) without resource conflicts.",
                     })
+
+            if path == "/api/interviewers/capacity":
+                interviewer_id = int(body.get("interviewer_id", 0))
+                max_per_day = int(body.get("max_per_day", 0))
+                if not 1 <= max_per_day <= len(TIMES):
+                    return self.send_json(400, {"error": f"max_per_day must be between 1 and {len(TIMES)}."})
+                with connect_database() as connection:
+                    updated = connection.execute(
+                        "UPDATE interviewers SET max_per_day = ? WHERE id = ?", (max_per_day, interviewer_id)
+                    ).rowcount
+                if not updated:
+                    return self.send_json(404, {"error": "Interviewer not found."})
+                return self.send_json(200, {"message": "Daily capacity updated."})
+
+            if path == "/api/interview-rounds/panel-size":
+                round_number = int(body.get("round_number", 0))
+                panel_size = int(body.get("panel_size", 0))
+                if not 1 <= panel_size <= 5:
+                    return self.send_json(400, {"error": "panel_size must be between 1 and 5."})
+                with connect_database() as connection:
+                    updated = connection.execute(
+                        "UPDATE interview_rounds SET panel_size = ? WHERE round_number = ?",
+                        (panel_size, round_number),
+                    ).rowcount
+                if not updated:
+                    return self.send_json(404, {"error": "Interview round not found."})
+                return self.send_json(200, {"message": "Panel size updated."})
 
             if path == "/api/availability":
                 resource_type = str(body.get("resource_type", ""))
@@ -1229,7 +1244,7 @@ class TrialsHandler(SimpleHTTPRequestHandler):
                     ).fetchone()
                     if not interview:
                         return self.send_json(404, {"error": "Scheduled interview not found."})
-                    if user["role"] == "interviewer" and interview["interviewer"] != user["display_name"]:
+                    if user["role"] == "interviewer" and not user_is_on_interview(connection, interview_id, user["display_name"]):
                         return self.send_json(403, {"error": "Interviewers may only evaluate their own assigned interviews."})
                     connection.execute(
                         """INSERT INTO evaluations (interview_id, score, feedback, decision)
@@ -1291,7 +1306,7 @@ class TrialsHandler(SimpleHTTPRequestHandler):
                     ).fetchone()
                     if not interview:
                         return self.send_json(404, {"error": "Scheduled interview not found."})
-                    if user["role"] == "interviewer" and interview["interviewer"] != user["display_name"]:
+                    if user["role"] == "interviewer" and not user_is_on_interview(connection, interview_id, user["display_name"]):
                         return self.send_json(403, {"error": "Interviewers may only cancel their own assigned interviews."})
                     connection.execute("UPDATE interviews SET status = 'cancelled' WHERE id = ?", (interview_id,))
                     connection.execute(
@@ -1316,6 +1331,7 @@ class TrialsHandler(SimpleHTTPRequestHandler):
                                room_id = ?, status = 'scheduled' WHERE id = ?""",
                             (option["time"], option["interviewer_id"], option["room_id"], interview_id),
                         )
+                        save_panel(connection, interview["candidate_id"], interview["round_number"], option["panel_ids"])
                         message = f"{interview['name']}'s interview was rescheduled to {option['interview_time'] if 'interview_time' in option else option['time']}."
                         response_message = "Interview automatically rescheduled to a conflict-free slot."
                     else:
@@ -1325,6 +1341,7 @@ class TrialsHandler(SimpleHTTPRequestHandler):
                                WHERE id = ?""",
                             (interview["candidate_id"],),
                         )
+                        connection.execute("DELETE FROM interview_panelists WHERE interview_id = ?", (interview_id,))
                         message = f"{interview['name']}'s interviewer cancelled. The candidate is back in the booking queue."
                         response_message = "No replacement slot was available; candidate returned to the queue."
                     connection.execute(
